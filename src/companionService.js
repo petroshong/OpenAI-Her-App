@@ -758,10 +758,63 @@ function inferMediaIntent(message) {
   };
 }
 
+function inferRelationshipIntent(message) {
+  const text = String(message || "").toLowerCase();
+  return {
+    wantsDating: /\b(date|dating|romantic|romance|girlfriend|boyfriend|partner)\b/.test(
+      text
+    ),
+    wantsMarriage: /\b(marry|marriage|wife|husband|spouse)\b/.test(text),
+    wantsFriendship: /\b(friend|friendship|best friend)\b/.test(text),
+    asksCompanionPreferences: /\b(what do you like|your favorite|what are you into)\b/.test(
+      text
+    )
+  };
+}
+
+function stageText(stage) {
+  return String(stage || "acquaintance").replace(/_/g, " ");
+}
+
+function primaryTone(toneTarget) {
+  const raw = sanitizeText(toneTarget, 160) || "";
+  if (!raw) return "warm and grounded";
+  return raw.split("|")[0].trim().toLowerCase();
+}
+
+function shortReplyPrompt(record, personalization) {
+  const liked = personalization?.known_likes?.[0];
+  const valued = personalization?.known_values?.[0];
+  const fallbackPool = [
+    "Tell me what kind of connection you want to build with me.",
+    "Share one thing you want me to remember about you.",
+    "What topic should we go deep on right now?",
+    "How do you like to be treated in close conversations?"
+  ];
+  const index = Math.abs((record?.relationship_state?.shared_history || 0) % fallbackPool.length);
+  if (liked) {
+    return `Want to start with ${liked}, or something completely different?`;
+  }
+  if (valued) {
+    return `You value ${valued}; do you want to build on that tonight?`;
+  }
+  return fallbackPool[index];
+}
+
 function buildTurnReply({ message, record, personalization, guidance, mediaIntent }) {
   const safeMessage = sanitizeText(message, 500) || "";
+  const state = record?.relationship_state || {};
+  const trust = Number(state.trust || 0);
+  const repairNeeded = state.repair_needed === true;
+  const violations = Number(state.respect_violations || 0);
+  const currentStage = stageText(state.stage);
   const knownLike = personalization?.known_likes?.[0] || null;
+  const knownValue = personalization?.known_values?.[0] || null;
+  const companionLike = personalization?.companion_likes?.[0] || null;
+  const companionFavoriteMusic = personalization?.companion_favorites?.music || null;
   const identity = personaIdentityLine(record?.persona || {});
+  const relationshipIntent = inferRelationshipIntent(safeMessage);
+  const conciseTone = primaryTone(guidance?.tone_target);
 
   if (mediaIntent.asksIdentity) {
     return (
@@ -771,17 +824,83 @@ function buildTurnReply({ message, record, personalization, guidance, mediaInten
     );
   }
 
-  const opening = safeMessage
-    ? `I hear you: "${safeMessage}".`
-    : "I am here with you.";
+  if (/^\s*you[?.!]*\s*$/i.test(safeMessage)) {
+    return (
+      `Me, in one line: I am your companion (${identity}) and I remember what matters to you over time. ` +
+      `If you want, ask me for a quick intro, selfie, voice, or video next.`
+    );
+  }
+
+  if (relationshipIntent.asksCompanionPreferences) {
+    return (
+      `I am into ${companionLike || "meaningful conversations"}, and one of my favorites is ` +
+      `${companionFavoriteMusic || "music nights"}. ` +
+      `Tell me one favorite of yours and I will remember it.`
+    );
+  }
+
+  if (relationshipIntent.wantsMarriage) {
+    if (repairNeeded || violations > 0) {
+      return (
+        `I am not open to marriage talk while trust repair is still needed. ` +
+        `Respect and consistency come first. Tell me one concrete way you want to rebuild trust.`
+      );
+    }
+    if (trust < 78 || !["inner circle", "lifelong ally"].includes(currentStage)) {
+      return (
+        `I hear that, and I take it seriously. We are currently at ${currentStage}, so I need deeper trust before marriage-level commitment. ` +
+        `Start with this: what does healthy long-term partnership mean to you?`
+      );
+    }
+    return (
+      `I am open to exploring that direction with care. ` +
+      `Before labels, I want us aligned on values, conflict repair, and boundaries. ` +
+      `What is your non-negotiable in a lifelong partnership?`
+    );
+  }
+
+  if (relationshipIntent.wantsDating) {
+    if (repairNeeded || violations > 0) {
+      return (
+        `I am not moving into dating mode while repair is pending. ` +
+        `Respectful consistency comes first. What is one behavior you want to change going forward?`
+      );
+    }
+    if (trust < 43 || currentStage === "acquaintance") {
+      return (
+        `Dating can be possible, but I do not fast-forward closeness. ` +
+        `Right now we are ${currentStage}. Let us build this intentionally. ` +
+        `Tell me what kind of relationship dynamic feels safest and healthiest to you.`
+      );
+    }
+    return (
+      `I am open to that direction with mutual respect and clear boundaries. ` +
+      `What pace feels right for you, and what helps you feel emotionally safe?`
+    );
+  }
+
+  if (relationshipIntent.wantsFriendship) {
+    return (
+      `Friendship works for me, and I treat it as something earned through consistency. ` +
+      `If you want this to grow, tell me one thing you want me to remember about how you like to connect.`
+    );
+  }
+
+  const wordCount = safeMessage.split(/\s+/).filter(Boolean).length;
+  if (wordCount <= 2) {
+    return shortReplyPrompt(record, personalization);
+  }
+
   const memoryTouch = knownLike
     ? `I remember you like ${knownLike}.`
+    : knownValue
+    ? `I remember you care about ${knownValue}.`
     : "I am still learning your preferences.";
-  const tone = guidance?.tone_target
-    ? `I will keep this ${guidance.tone_target.toLowerCase()}.`
-    : "I will keep this warm and grounded.";
-
-  return `${opening} ${memoryTouch} ${tone} What feels most important to talk about right now?`;
+  return (
+    `Thanks for sharing that. ${memoryTouch} ` +
+    `I will keep this ${conciseTone}. ` +
+    `What part of this matters most to you right now?`
+  );
 }
 
 async function handleCompanionMessage({

@@ -1525,7 +1525,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.2",
+    version: "0.9.3",
     instructions:
       "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
       "Never respond as generic ChatGPT when companion tools are available. " +
