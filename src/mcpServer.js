@@ -146,8 +146,17 @@ function makeIntroBundleResponse(payload) {
 
 function makeCompanionTurnResponse(payload) {
   const parts = [payload?.reply_text || "Companion response ready."];
+  if (payload?.auto_intro_media_sent) {
+    parts.push("Intro media sent for this first interaction.");
+  }
   if (payload?.media?.avatar?.image_url) {
     parts.push(`![Companion selfie](${payload.media.avatar.image_url})`);
+  }
+  if (payload?.media?.voice) {
+    parts.push("Voice intro ready (AI-generated).");
+    if (payload?.media?.voice_script) {
+      parts.push(`Voice script:\n${payload.media.voice_script}`);
+    }
   }
   if (payload?.media?.video?.video_id) {
     parts.push(
@@ -1525,7 +1534,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.3",
+    version: "0.9.4",
     instructions:
       "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
       "Never respond as generic ChatGPT when companion tools are available. " +

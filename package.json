@@ -1,6 +1,6 @@
 {
   "name": "relationship-companion-chatgpt-app",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "private": true,
   "description": "Relationship companion backend with persona memory, avatar generation, and voice features.",
   "main": "src/server.js",

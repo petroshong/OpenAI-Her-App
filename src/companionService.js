@@ -696,7 +696,7 @@ async function openCompanionSession({
     });
   }
 
-  const hasAssets = Boolean(record.session_assets?.avatar_image_url);
+  const hasAssets = Boolean(record.session_assets?.generated_at_iso);
   if (refreshMedia === true || !hasAssets) {
     return generateIntroBundle({
       userId: boundUserId,
@@ -918,7 +918,12 @@ async function handleCompanionMessage({
     throw new Error("message is required");
   }
 
-  await openCompanionSession({
+  const recordBeforeOpen = getUserRecord(boundUserId);
+  const autoFirstTurnMediaEnabled =
+    String(process.env.AUTO_FIRST_TURN_MEDIA || "true") !== "false";
+  const introAlreadySent = Boolean(recordBeforeOpen?.session_assets?.auto_intro_sent_iso);
+
+  const openSessionPayload = await openCompanionSession({
     userId: boundUserId,
     refreshMedia,
     includeVideo: includeVideo === true,
@@ -948,6 +953,46 @@ async function handleCompanionMessage({
   const media = {};
   const fallback = {};
   const media_warnings = [];
+  let auto_intro_media_sent = false;
+
+  if (autoFirstTurnMediaEnabled && !introAlreadySent) {
+    auto_intro_media_sent = true;
+    const openWarnings = Array.isArray(openSessionPayload?.media_warnings)
+      ? openSessionPayload.media_warnings
+      : [];
+    const voiceUnavailable = openWarnings.some((x) =>
+      String(x || "").toLowerCase().startsWith("voice_unavailable")
+    );
+    if (openSessionPayload?.avatar?.image_url) {
+      media.avatar = {
+        image_url: openSessionPayload.avatar.image_url,
+        prompt: openSessionPayload?.avatar?.prompt || null
+      };
+    } else if (openSessionPayload?.avatar?.prompt) {
+      fallback.avatar_prompt = openSessionPayload.avatar.prompt;
+    }
+
+    if (openSessionPayload?.voice && !voiceUnavailable) {
+      media.voice = openSessionPayload.voice;
+      if (openSessionPayload?.intro_script) {
+        media.voice_script = openSessionPayload.intro_script;
+      }
+    } else if (openSessionPayload?.intro_script) {
+      fallback.voice_script = openSessionPayload.intro_script;
+    }
+
+    if (openWarnings.length > 0) {
+      media_warnings.push(...openWarnings);
+    }
+
+    upsertUserRecord(boundUserId, {
+      ...record,
+      session_assets: {
+        ...(record.session_assets || {}),
+        auto_intro_sent_iso: new Date().toISOString()
+      }
+    });
+  }
 
   if (mediaIntent.wantsSelfie) {
     try {
@@ -1024,7 +1069,8 @@ async function handleCompanionMessage({
     safety_notice: captureResult.safety_notice || null,
     media,
     fallback,
-    media_warnings
+    media_warnings,
+    auto_intro_media_sent
   };
 }
 
