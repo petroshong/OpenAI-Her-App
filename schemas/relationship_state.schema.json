@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RelationshipState",
+  "type": "object",
+  "required": [
+    "stage",
+    "trust",
+    "intimacy",
+    "commitment",
+    "conflict_resilience",
+    "boundaries_respected",
+    "attunement",
+    "shared_history",
+    "resentment",
+    "repair_needed",
+    "respect_violations",
+    "positive_streak",
+    "negative_streak",
+    "milestones"
+  ],
+  "properties": {
+    "stage": {
+      "type": "string",
+      "enum": [
+        "acquaintance",
+        "friend",
+        "close_friend",
+        "partner",
+        "engaged",
+        "married"
+      ]
+    },
+    "trust": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "intimacy": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "commitment": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "conflict_resilience": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "boundaries_respected": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "attunement": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "shared_history": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "resentment": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "repair_needed": { "type": "boolean" },
+    "respect_violations": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "positive_streak": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "negative_streak": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "milestones": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "last_updated_iso": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserPreferences",
+  "type": "object",
+  "required": ["gender", "age", "zodiac", "mbti"],
+  "properties": {
+    "gender": {
+      "type": "string",
+      "enum": ["woman", "man", "nonbinary", "random"]
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 21,
+      "maximum": 80
+    },
+    "zodiac": {
+      "type": "string",
+      "enum": [
+        "aries",
+        "taurus",
+        "gemini",
+        "cancer",
+        "leo",
+        "virgo",
+        "libra",
+        "scorpio",
+        "sagittarius",
+        "capricorn",
+        "aquarius",
+        "pisces",
+        "random"
+      ]
+    },
+    "mbti": {
+      "type": "string",
+      "enum": [
+        "INTJ",
+        "INTP",
+        "ENTJ",
+        "ENTP",
+        "INFJ",
+        "INFP",
+        "ENFJ",
+        "ENFP",
+        "ISTJ",
+        "ISFJ",
+        "ESTJ",
+        "ESFJ",
+        "ISTP",
+        "ISFP",
+        "ESTP",
+        "ESFP",
+        "random"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

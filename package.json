@@ -1,0 +1,23 @@
+{
+  "name": "relationship-companion-chatgpt-app",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Relationship companion backend with persona memory, avatar generation, and voice features.",
+  "main": "src/server.js",
+  "scripts": {
+    "demo": "node ./src/demoFlow.js",
+    "start": "node ./src/mcpServer.js",
+    "start:api": "node ./src/server.js",
+    "start:mcp": "node ./src/mcpServer.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^0.2.0",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jose": "^5.9.6",
+    "openai": "^4.87.4",
+    "zod": "^3.24.1"
+  }
+}

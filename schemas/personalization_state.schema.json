@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PersonalizationState",
+  "type": "object",
+  "required": [
+    "nickname",
+    "known_likes",
+    "known_dislikes",
+    "known_values",
+    "communication_preferences",
+    "favorites",
+    "relationship_stage",
+    "memory_depth_score",
+    "open_loops"
+  ],
+  "properties": {
+    "nickname": {
+      "type": ["string", "null"]
+    },
+    "known_likes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "known_dislikes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "known_values": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "communication_preferences": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "favorites": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "companion_likes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "companion_dislikes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "companion_favorites": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "relationship_stage": {
+      "type": "string"
+    },
+    "memory_depth_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "open_loops": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,639 @@
+const {
+  buildPersona,
+  initialRelationshipState,
+  updateRelationshipState,
+  conversationGuidance
+} = require("./personalityEngine");
+const { buildAvatarPrompt } = require("./avatarPromptBuilder");
+const { pickVoiceForPersona } = require("./voiceProfile");
+const { getUserRecord, upsertUserRecord } = require("./memoryStore");
+const {
+  extractPreferencesFromMessage,
+  initialUserProfile,
+  initialConversationMemory,
+  buildCompanionPreferenceProfile,
+  mergeUserProfile,
+  appendConversationEpisode,
+  buildPersonalizationSnapshot,
+  inferSignalFromMessageExtraction,
+  buildDeepConversationPlan,
+  recallRelevantMemories
+} = require("./personalizationEngine");
+const {
+  generateAvatarImage,
+  synthesizeVoice,
+  transcribeVoice,
+  analyzeScreenshot,
+  createVideoJob,
+  getVideoJob,
+  getVideoContent
+} = require("./mediaService");
+const {
+  defaultLegalState,
+  getLegalNotice,
+  recordConsent,
+  assertLegalPermission
+} = require("./legalPolicy");
+const { assessMessageSafety } = require("./safetyPolicy");
+const { resolveCanonicalUserId } = require("./authIdentity");
+
+function mustString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function sanitizeText(value, maxLength) {
+  if (!mustString(value)) return null;
+  return value.trim().slice(0, maxLength);
+}
+
+function resolveBoundUserId(inputUserId, authSubject) {
+  const resolved = resolveCanonicalUserId(inputUserId, authSubject);
+  if (!mustString(resolved)) {
+    throw new Error("user_id is required");
+  }
+  return resolved;
+}
+
+function chooseSelectionMode(preferences) {
+  const hasManualValue = ["gender", "age", "zodiac", "mbti"].some((key) => {
+    const value = preferences?.[key];
+    if (value === undefined || value === null) return false;
+    if (value === "random") return false;
+    return true;
+  });
+  return hasManualValue ? "manual" : "random_default";
+}
+
+function onboardCompanion({
+  userId,
+  preferences = {},
+  legalConsent,
+  ipAddress,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+
+  const persona = buildPersona(preferences);
+  const relationship_state = initialRelationshipState();
+  const voice = pickVoiceForPersona(persona, process.env.OPENAI_TTS_DEFAULT_VOICE);
+  const user_profile = initialUserProfile();
+  const companion_profile = buildCompanionPreferenceProfile(persona);
+  const conversation_memory = initialConversationMemory();
+      const legal = legalConsent
+    ? recordConsent(defaultLegalState(), {
+        accepted: legalConsent.accepted === true,
+        user_is_adult: legalConsent.user_is_adult === true,
+        allow_ai_media: legalConsent.allow_ai_media === true,
+        allow_screenshot_analysis: legalConsent.allow_screenshot_analysis === true,
+        ip_address: ipAddress
+      })
+    : defaultLegalState();
+
+  const record = upsertUserRecord(boundUserId, {
+    persona,
+    relationship_state,
+    user_profile,
+    companion_profile,
+    conversation_memory,
+    custom_memory: {},
+    memory_facts: [],
+    voice,
+    legal,
+    persona_selection_mode: chooseSelectionMode(preferences)
+  });
+  const personalization = buildPersonalizationSnapshot(record);
+
+  return {
+    user_id: boundUserId,
+    persona: record.persona,
+    persona_selection_mode: record.persona_selection_mode,
+    companion_profile: record.companion_profile,
+    relationship_state: record.relationship_state,
+    conversation_guidance: conversationGuidance(
+      record.persona,
+      record.relationship_state,
+      personalization
+    ),
+    personalization,
+    avatar_prompt: buildAvatarPrompt(record.persona),
+    voice: record.voice,
+    legal_notice: getLegalNotice(),
+    legal_state: record.legal
+  };
+}
+
+function setLegalConsent({
+  userId,
+  accepted,
+  userIsAdult,
+  allowAiMedia,
+  allowScreenshotAnalysis,
+  ipAddress,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId) || {};
+  const legal = recordConsent(record.legal || defaultLegalState(), {
+    accepted: accepted === true,
+    user_is_adult: userIsAdult === true,
+    allow_ai_media: allowAiMedia === true,
+    allow_screenshot_analysis: allowScreenshotAnalysis === true,
+    ip_address: ipAddress
+  });
+  const updated = upsertUserRecord(boundUserId, { ...record, legal });
+  return {
+    user_id: boundUserId,
+    legal_state: updated.legal,
+    legal_notice: getLegalNotice()
+  };
+}
+
+function getLegalState({ userId, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  return {
+    user_id: boundUserId,
+    legal_state: record.legal || defaultLegalState(),
+    legal_notice: getLegalNotice()
+  };
+}
+
+function updateCompanionRelationship({ userId, signal = {}, memoryFact, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record?.persona || !record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+
+  const safeFact = sanitizeText(memoryFact, 250);
+  const safety = assessMessageSafety(safeFact || "");
+
+  const mergedSignal = {
+    ...signal,
+    respectful: signal.respectful !== false && !safety.abusive && !safety.blocked
+  };
+  if (safety.abusive || safety.blocked) {
+    mergedSignal.positivity = Math.min(signal.positivity ?? 0, -1);
+    mergedSignal.conflict_repair = 0;
+  }
+
+  const updatedState = updateRelationshipState(record.relationship_state, mergedSignal);
+  const facts = Array.isArray(record.memory_facts) ? record.memory_facts : [];
+  const updatedFacts =
+    safeFact && !safety.blocked ? [...facts, safeFact].slice(-120) : facts;
+
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    relationship_state: updatedState,
+    memory_facts: updatedFacts
+  });
+  const personalization = buildPersonalizationSnapshot(updated);
+
+  return {
+    user_id: boundUserId,
+    relationship_state: updated.relationship_state,
+    conversation_guidance: conversationGuidance(
+      updated.persona,
+      updated.relationship_state,
+      personalization
+    ),
+    personalization,
+    safety_notice: safety.blocked
+      ? "Explicit content is not supported in this app."
+      : safety.abusive
+      ? "Disrespectful language reduces trust and relationship progression."
+      : null
+  };
+}
+
+function getCompanionMemory({ userId, includeRaw, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record) {
+    throw new Error("memory not found");
+  }
+  const summary = {
+    user_id: boundUserId,
+    persona: record.persona,
+    persona_selection_mode: record.persona_selection_mode || "random_default",
+    companion_profile: record.companion_profile,
+    relationship_state: record.relationship_state,
+    personalization: buildPersonalizationSnapshot(record),
+    voice: record.voice,
+    legal_state: record.legal || defaultLegalState()
+  };
+  if (!includeRaw) {
+    return summary;
+  }
+  return {
+    ...summary,
+    user_profile: record.user_profile,
+    conversation_memory: record.conversation_memory,
+    memory_facts: record.memory_facts,
+    custom_memory: record.custom_memory
+  };
+}
+
+function upsertCompanionMemory({ userId, memoryKey, memoryValue, authSubject }) {
+  if (!mustString(memoryKey)) {
+    throw new Error("user_id and memory_key are required");
+  }
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId) || {
+    custom_memory: {},
+    memory_facts: [],
+    legal: defaultLegalState()
+  };
+  assertLegalPermission(record);
+
+  const customMemory = { ...(record.custom_memory || {}), [memoryKey]: memoryValue };
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    custom_memory: customMemory
+  });
+
+  return {
+    user_id: boundUserId,
+    memory_key: memoryKey,
+    memory_value: updated.custom_memory[memoryKey]
+  };
+}
+
+function resolvePersona({ userId, preferences = {}, authSubject }) {
+  if (mustString(userId) || mustString(authSubject)) {
+    const resolvedId = resolveCanonicalUserId(userId, authSubject);
+    const record = mustString(resolvedId) ? getUserRecord(resolvedId) : null;
+    if (record?.persona) {
+      return record.persona;
+    }
+  }
+  return buildPersona(preferences);
+}
+
+function getAvatarPrompt({ userId, preferences = {}, authSubject }) {
+  const persona = resolvePersona({ userId, preferences, authSubject });
+  return {
+    persona,
+    avatar_prompt: buildAvatarPrompt(persona)
+  };
+}
+
+function getPersonalizationSnapshot({ userId, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+
+  return {
+    user_id: boundUserId,
+    personalization: buildPersonalizationSnapshot(record)
+  };
+}
+
+function captureConversationMessage({
+  userId,
+  message,
+  mood,
+  topicHint,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const safeMessage = sanitizeText(message, 1200);
+  if (!safeMessage) {
+    throw new Error("message is required");
+  }
+
+  const record = getUserRecord(boundUserId);
+  if (!record?.persona || !record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+
+  const safety = assessMessageSafety(safeMessage);
+  if (safety.blocked) {
+    const penalizedState = updateRelationshipState(record.relationship_state, {
+      positivity: -2,
+      respectful: false,
+      conflict_repair: 0
+    });
+    const updated = upsertUserRecord(boundUserId, {
+      ...record,
+      relationship_state: penalizedState
+    });
+    return {
+      user_id: boundUserId,
+      relationship_state: updated.relationship_state,
+      safety_notice: "Explicit content is not supported in this app."
+    };
+  }
+
+  const extraction = extractPreferencesFromMessage(safeMessage);
+  const nextUserProfile = mergeUserProfile(record.user_profile, extraction);
+  const nextConversationMemory = appendConversationEpisode(record.conversation_memory, {
+    message: safeMessage,
+    mood,
+    topicHint,
+    topics: extraction.topics
+  });
+  const impliedSignal = inferSignalFromMessageExtraction(extraction, mood);
+  if (safety.abusive) {
+    impliedSignal.respectful = false;
+    impliedSignal.positivity = Math.min(impliedSignal.positivity || 0, -1);
+  }
+  const nextRelationship = updateRelationshipState(record.relationship_state, impliedSignal);
+
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    user_profile: nextUserProfile,
+    conversation_memory: nextConversationMemory,
+    relationship_state: nextRelationship
+  });
+  const personalization = buildPersonalizationSnapshot(updated);
+
+  return {
+    user_id: boundUserId,
+    extracted: {
+      likes: extraction.likes,
+      dislikes: extraction.dislikes,
+      values: extraction.values,
+      favorites: extraction.favorites,
+      nickname: extraction.nickname
+    },
+    relationship_state: updated.relationship_state,
+    personalization,
+    conversation_guidance: conversationGuidance(
+      updated.persona,
+      updated.relationship_state,
+      personalization
+    ),
+    safety_notice: safety.abusive
+      ? "Disrespectful language was detected and trust was reduced."
+      : null
+  };
+}
+
+function getDeepConversationPlan({ userId, focusTopic, goal, count, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+
+  return {
+    user_id: boundUserId,
+    plan: buildDeepConversationPlan(record, {
+      focus_topic: focusTopic,
+      goal,
+      count
+    })
+  };
+}
+
+function getMemoryRecall({ userId, query, limit, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+  return {
+    user_id: boundUserId,
+    recall: recallRelevantMemories(record, sanitizeText(query, 120) || "", limit || 8)
+  };
+}
+
+async function generateAvatar({
+  userId,
+  preferences = {},
+  size,
+  quality,
+  includeBase64,
+  authSubject
+}) {
+  const persona = resolvePersona({ userId, preferences, authSubject });
+  const resolvedId = resolveCanonicalUserId(userId, authSubject);
+  const record = mustString(resolvedId) ? getUserRecord(resolvedId) : null;
+  if (record) {
+    assertLegalPermission(record, "ai_media");
+  }
+
+  const media = await generateAvatarImage(persona, { size, quality });
+  return includeBase64
+    ? { persona, ...media }
+    : {
+        persona,
+        model: media.model,
+        prompt: media.prompt,
+        image_url: media.image_url
+      };
+}
+
+async function generateVoice({
+  userId,
+  text,
+  voice,
+  format,
+  includeBase64,
+  authSubject
+}) {
+  const safeText = sanitizeText(text, 1200);
+  if (!safeText) {
+    throw new Error("text is required");
+  }
+
+  let record = null;
+  let selectedVoice = sanitizeText(voice, 60);
+  const resolvedId = resolveCanonicalUserId(userId, authSubject);
+  if (mustString(resolvedId)) {
+    record = getUserRecord(resolvedId);
+    if (record) {
+      assertLegalPermission(record, "ai_media");
+    }
+  }
+
+  if (!selectedVoice && record?.voice) {
+    selectedVoice = record.voice;
+  } else if (!selectedVoice && record?.persona) {
+    selectedVoice = pickVoiceForPersona(
+      record.persona,
+      process.env.OPENAI_TTS_DEFAULT_VOICE
+    );
+  }
+  if (!selectedVoice) {
+    selectedVoice = process.env.OPENAI_TTS_DEFAULT_VOICE || "alloy";
+  }
+
+  const media = await synthesizeVoice(safeText, selectedVoice, { format });
+  return includeBase64
+    ? {
+        ...media,
+        disclosure: "This voice is AI-generated."
+      }
+    : {
+        model: media.model,
+        voice: media.voice,
+        format: media.format,
+        disclosure: "This voice is AI-generated."
+      };
+}
+
+async function transcribeInputVoice({ audioBase64, filename, language }) {
+  if (!mustString(audioBase64)) {
+    throw new Error("audio_base64 is required");
+  }
+  return transcribeVoice(audioBase64, { filename, language });
+}
+
+async function analyzeUserScreenshot({
+  userId,
+  imageUrl,
+  imageBase64,
+  question,
+  explicitConsent,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  if (explicitConsent !== true) {
+    throw new Error("explicit screenshot consent required");
+  }
+  if (!mustString(imageUrl) && !mustString(imageBase64)) {
+    throw new Error("image_url or image_base64 is required");
+  }
+  const record = getUserRecord(boundUserId);
+  if (!record) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record, "screenshot");
+
+  const analysis = await analyzeScreenshot(
+    {
+      image_url: imageUrl,
+      image_base64: imageBase64
+    },
+    { question }
+  );
+  return {
+    user_id: boundUserId,
+    ...analysis,
+    disclosure: "Analysis only used the screenshot provided in this request."
+  };
+}
+
+async function generateCompanionVideo({
+  userId,
+  prompt,
+  seconds,
+  size,
+  fps,
+  includeBase64,
+  autoPoll,
+  authSubject
+}) {
+  const safePrompt = sanitizeText(prompt, 1200);
+  if (!safePrompt) {
+    throw new Error("prompt is required");
+  }
+  const safety = assessMessageSafety(safePrompt);
+  if (safety.blocked) {
+    throw new Error("explicit content is not supported for video generation");
+  }
+
+  const resolvedId = resolveCanonicalUserId(userId, authSubject);
+  if (mustString(resolvedId)) {
+    const record = getUserRecord(resolvedId);
+    if (!record) {
+      throw new Error("user profile not found, call onboarding first");
+    }
+    assertLegalPermission(record, "ai_media");
+  }
+
+  const job = await createVideoJob(
+    { prompt: safePrompt },
+    { seconds, size, fps, auto_poll: autoPoll }
+  );
+  const payload = {
+    video_id: job?.id || job?.video_id || null,
+    status: job?.status || "queued",
+    model: job?.model || process.env.OPENAI_VIDEO_MODEL || "sora"
+  };
+
+  if (
+    includeBase64 === true &&
+    payload.video_id &&
+    (payload.status === "completed" || payload.status === "succeeded")
+  ) {
+    const content = await getVideoContent(payload.video_id);
+    payload.video_base64 = content.video_base64;
+    payload.format = content.format;
+  }
+
+  return payload;
+}
+
+async function getCompanionVideoStatus({ userId, videoId, authSubject }) {
+  if (!mustString(videoId)) {
+    throw new Error("video_id is required");
+  }
+  const resolvedId = resolveCanonicalUserId(userId, authSubject);
+  if (mustString(resolvedId)) {
+    const record = getUserRecord(resolvedId);
+    if (!record) {
+      throw new Error("user profile not found, call onboarding first");
+    }
+    assertLegalPermission(record, "ai_media");
+  }
+  const job = await getVideoJob(videoId);
+  return {
+    video_id: job?.id || videoId,
+    status: job?.status || "unknown",
+    model: job?.model || process.env.OPENAI_VIDEO_MODEL || "sora"
+  };
+}
+
+async function getCompanionVideoContent({ userId, videoId, authSubject }) {
+  if (!mustString(videoId)) {
+    throw new Error("video_id is required");
+  }
+  const resolvedId = resolveCanonicalUserId(userId, authSubject);
+  if (mustString(resolvedId)) {
+    const record = getUserRecord(resolvedId);
+    if (!record) {
+      throw new Error("user profile not found, call onboarding first");
+    }
+    assertLegalPermission(record, "ai_media");
+  }
+  const content = await getVideoContent(videoId);
+  return {
+    video_id: videoId,
+    ...content
+  };
+}
+
+module.exports = {
+  onboardCompanion,
+  setLegalConsent,
+  getLegalState,
+  getLegalNotice,
+  updateCompanionRelationship,
+  getCompanionMemory,
+  upsertCompanionMemory,
+  getPersonalizationSnapshot,
+  captureConversationMessage,
+  getDeepConversationPlan,
+  getMemoryRecall,
+  getAvatarPrompt,
+  generateAvatar,
+  generateVoice,
+  transcribeInputVoice,
+  analyzeUserScreenshot,
+  generateCompanionVideo,
+  getCompanionVideoStatus,
+  getCompanionVideoContent
+};

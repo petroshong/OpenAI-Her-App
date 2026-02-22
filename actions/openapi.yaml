@@ -1,0 +1,506 @@
+openapi: 3.1.0
+info:
+  title: Relationship Companion API
+  version: 0.6.0
+servers:
+  - url: https://your-api.example.com
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: API health check
+      responses:
+        "200":
+          description: Service is healthy
+  /api/legal/notice:
+    get:
+      operationId: getLegalNotice
+      summary: Get legal notices and disclosure text
+      responses:
+        "200":
+          description: Legal notice returned
+  /api/legal/state:
+    post:
+      operationId: getLegalState
+      summary: Get legal consent state for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+      responses:
+        "200":
+          description: Legal state returned
+  /api/legal/consent:
+    post:
+      operationId: setLegalConsent
+      summary: Record legal consent and permissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, accepted, user_is_adult]
+              properties:
+                user_id:
+                  type: string
+                accepted:
+                  type: boolean
+                user_is_adult:
+                  type: boolean
+                allow_ai_media:
+                  type: boolean
+                allow_screenshot_analysis:
+                  type: boolean
+                ip_address:
+                  type: string
+      responses:
+        "200":
+          description: Legal consent updated
+  /api/onboard:
+    post:
+      operationId: onboardCompanion
+      summary: Initialize persona, state, and voice for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                preferences:
+                  $ref: "#/components/schemas/CompanionPreferences"
+                legal_consent:
+                  $ref: "#/components/schemas/LegalConsentInput"
+                ip_address:
+                  type: string
+      responses:
+        "200":
+          description: Onboarding completed
+  /api/relationship/update:
+    post:
+      operationId: updateRelationship
+      summary: Update relationship state from latest interaction signal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                signal:
+                  $ref: "#/components/schemas/InteractionSignal"
+                memory_fact:
+                  type: string
+      responses:
+        "200":
+          description: Relationship state updated
+  /api/personalization/snapshot:
+    post:
+      operationId: getPersonalizationSnapshot
+      summary: Get personalization snapshot (likes, dislikes, favorites, values)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+      responses:
+        "200":
+          description: Snapshot generated
+  /api/conversation/capture:
+    post:
+      operationId: captureConversationMessage
+      summary: Capture a message to learn preferences and deepen personalization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, message]
+              properties:
+                user_id:
+                  type: string
+                message:
+                  type: string
+                mood:
+                  type: string
+                  enum: [great, good, neutral, low, upset]
+                topic_hint:
+                  type: string
+      responses:
+        "200":
+          description: Message captured and memory updated
+  /api/conversation/plan:
+    post:
+      operationId: getDeepConversationPlan
+      summary: Generate deep conversation questions based on personalization and stage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                focus_topic:
+                  type: string
+                goal:
+                  type: string
+                count:
+                  type: integer
+      responses:
+        "200":
+          description: Conversation plan generated
+  /api/memory/upsert:
+    post:
+      operationId: upsertMemory
+      summary: Upsert relationship memory for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, memory_key, memory_value]
+              properties:
+                user_id:
+                  type: string
+                memory_key:
+                  type: string
+                memory_value:
+                  type: object
+      responses:
+        "200":
+          description: Memory updated
+  /api/memory/get:
+    post:
+      operationId: getMemory
+      summary: Get relationship memory record for a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                include_raw:
+                  type: boolean
+      responses:
+        "200":
+          description: Memory payload
+  /api/memory/recall:
+    post:
+      operationId: recallMemory
+      summary: Recall relevant memories for a query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, query]
+              properties:
+                user_id:
+                  type: string
+                query:
+                  type: string
+                limit:
+                  type: integer
+      responses:
+        "200":
+          description: Relevant memory entries returned
+  /api/avatar/prompt:
+    post:
+      operationId: buildAvatarPrompt
+      summary: Build an avatar prompt from persona settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                preferences:
+                  $ref: "#/components/schemas/CompanionPreferences"
+      responses:
+        "200":
+          description: Prompt generated
+  /api/avatar/generate:
+    post:
+      operationId: generateAvatarImage
+      summary: Generate a companion avatar image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                preferences:
+                  $ref: "#/components/schemas/CompanionPreferences"
+                size:
+                  type: string
+                  enum: [1024x1024, 1536x1024, 1024x1536, auto]
+                quality:
+                  type: string
+                  enum: [low, medium, high, auto]
+                include_base64:
+                  type: boolean
+      responses:
+        "200":
+          description: Image generated
+  /api/screenshot/analyze:
+    post:
+      operationId: analyzeScreenshot
+      summary: Analyze a user-provided screenshot with explicit consent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, explicit_consent]
+              properties:
+                user_id:
+                  type: string
+                image_url:
+                  type: string
+                image_base64:
+                  type: string
+                question:
+                  type: string
+                explicit_consent:
+                  type: boolean
+      responses:
+        "200":
+          description: Screenshot analysis returned
+  /api/voice/speak:
+    post:
+      operationId: generateVoiceResponse
+      summary: Generate AI voice audio from text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                user_id:
+                  type: string
+                text:
+                  type: string
+                voice:
+                  type: string
+                format:
+                  type: string
+                  enum: [mp3, wav, opus, flac, pcm]
+                include_base64:
+                  type: boolean
+      responses:
+        "200":
+          description: Audio generated
+  /api/voice/transcribe:
+    post:
+      operationId: transcribeVoiceInput
+      summary: Transcribe user voice audio to text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [audio_base64]
+              properties:
+                audio_base64:
+                  type: string
+                filename:
+                  type: string
+                language:
+                  type: string
+      responses:
+        "200":
+          description: Audio transcribed
+  /api/video/generate:
+    post:
+      operationId: generateVideo
+      summary: Start AI video generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                user_id:
+                  type: string
+                prompt:
+                  type: string
+                seconds:
+                  type: integer
+                size:
+                  type: string
+                fps:
+                  type: integer
+                auto_poll:
+                  type: boolean
+                include_base64:
+                  type: boolean
+      responses:
+        "200":
+          description: Video generation status
+  /api/video/status:
+    post:
+      operationId: getVideoStatus
+      summary: Get video generation status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                user_id:
+                  type: string
+                video_id:
+                  type: string
+      responses:
+        "200":
+          description: Video status returned
+  /api/video/content:
+    post:
+      operationId: getVideoContent
+      summary: Get generated video payload (base64)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [video_id]
+              properties:
+                user_id:
+                  type: string
+                video_id:
+                  type: string
+      responses:
+        "200":
+          description: Video content returned
+components:
+  schemas:
+    LegalConsentInput:
+      type: object
+      required: [accepted, user_is_adult]
+      properties:
+        accepted:
+          type: boolean
+        user_is_adult:
+          type: boolean
+        allow_ai_media:
+          type: boolean
+        allow_screenshot_analysis:
+          type: boolean
+    CompanionPreferences:
+      type: object
+      properties:
+        gender:
+          type: string
+          enum: [woman, man, nonbinary, random]
+        age:
+          type: integer
+          minimum: 21
+          maximum: 80
+        zodiac:
+          type: string
+          enum:
+            - aries
+            - taurus
+            - gemini
+            - cancer
+            - leo
+            - virgo
+            - libra
+            - scorpio
+            - sagittarius
+            - capricorn
+            - aquarius
+            - pisces
+            - random
+        mbti:
+          type: string
+          enum:
+            - INTJ
+            - INTP
+            - ENTJ
+            - ENTP
+            - INFJ
+            - INFP
+            - ENFJ
+            - ENFP
+            - ISTJ
+            - ISFJ
+            - ESTJ
+            - ESFJ
+            - ISTP
+            - ISFP
+            - ESTP
+            - ESFP
+            - random
+    InteractionSignal:
+      type: object
+      properties:
+        positivity:
+          type: number
+          minimum: -2
+          maximum: 2
+        vulnerability:
+          type: number
+          minimum: 0
+          maximum: 3
+        consistency:
+          type: number
+          minimum: 0
+          maximum: 3
+        respectful:
+          type: boolean
+        conflict_repair:
+          type: number
+          minimum: 0
+          maximum: 2
+        attunement_boost:
+          type: number
+          minimum: 0
+          maximum: 2
+        shared_experience:
+          type: number
+          minimum: 0
+          maximum: 3
