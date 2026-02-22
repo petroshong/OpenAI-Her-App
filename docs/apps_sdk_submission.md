@@ -5,6 +5,7 @@ Source links:
 - https://developers.openai.com/apps-sdk/deploy/submission
 - https://developers.openai.com/apps-sdk/build/mcp-server
 - https://platform.openai.com/docs/guides/text-to-speech
+- https://openai.com/policies/app-submission-guidelines/
 
 ## Practical checklist
 
@@ -13,18 +14,17 @@ Source links:
 3. Use a unique dedicated widget domain and explicitly define widget CSP with exact domain allowlists.
 4. Provide a privacy policy URL hosted on your verified domain.
 5. Provide terms of service and clear AI disclosure language.
-5. Keep tools high-quality and specific:
+6. Keep tools high-quality and specific:
    - explicit names
    - strong parameter descriptions
    - accurate annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`, optional idempotency)
-6. Keep app quality high: no broken links, no severe bugs, no dead-end experiences.
-7. Avoid ad-like and monetization prompts in-app.
-8. Mature/explicit 18+ experiences are not eligible right now; keep content general-audience-safe.
-9. For screenshot/screen understanding, require explicit user-provided image input and consent.
-10. Use clear support contact details and icon/name metadata in builder.
-11. Keep tool responses minimal and scoped to what the model needs for the next step.
-12. For stronger user protection, bind memory identity to authenticated account subject (OAuth/JWT).
-13. Enforce adult-only access (18+) through explicit consent gating.
+7. Keep app quality high: no broken links, no severe bugs, no dead-end experiences.
+8. Avoid ad-like and monetization prompts in-app.
+9. Keep experiences general-audience-safe. Block sexual/erotic explicit content.
+10. For screenshot/screen understanding, require explicit user-provided image input and consent.
+11. Use clear support contact details and icon/name metadata in builder.
+12. Keep tool responses minimal and scoped to what the model needs for the next step.
+13. For stronger user protection, bind memory identity to authenticated account subject (OAuth/JWT).
 
 ## Voice-specific requirement
 

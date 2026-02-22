@@ -31,7 +31,6 @@ Fast path (recommended):
 5.1 Before memory/media features:
    - show legal notice
    - ask for consent to terms/privacy
-   - require user to confirm they are 18+ before continuing
    - ask optional consent for AI media and screenshot analysis
 
 6. Initialize relationship state:
@@ -60,7 +59,7 @@ Fast path (recommended):
 
 10. If user sends voice notes:
    - transcribe first
-   - then continue relationship conversation based on transcribed text
+   - then continue conversation based on transcribed text
 
 11. For deeper conversations:
    - build a stage-aware conversation plan
@@ -70,7 +69,7 @@ Progression policy:
 
 - Promote stage only when weighted relationship score crosses threshold and recent trend is positive.
 - Use temporary cooldown after major conflicts before stage promotions.
-- If user requests unrealistic jump (for example directly to marriage), respond warmly but require relationship development first.
+- If user requests unrealistic stage jump, respond warmly but require trust development first.
 - Keep progression blocked when boundaries are violated until respectful repair occurs.
 - Keep language non-explicit and general-audience safe.
 - Repeated disrespect can demote relationship stage and raise repair requirements.

@@ -25,9 +25,9 @@
         "acquaintance",
         "friend",
         "close_friend",
-        "partner",
-        "engaged",
-        "married"
+        "trusted_companion",
+        "inner_circle",
+        "lifelong_ally"
       ]
     },
     "trust": { "type": "integer", "minimum": 0, "maximum": 100 },

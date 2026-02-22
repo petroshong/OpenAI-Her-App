@@ -44,9 +44,10 @@ Use this as a starting point for your hosted privacy policy page. Replace placeh
 - HTTPS required in production
 - Access controls and logging on backend services
 
-## 8. Children
+## 8. Audience and Content Safety
 
-- App is intended for adults only (18+).
+- App behavior is designed to be general-audience-safe.
+- Explicit sexual content is blocked.
 
 ## 9. Changes
 

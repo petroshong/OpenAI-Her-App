@@ -30,7 +30,6 @@
 3. Add privacy policy URL.
 4. Test each tool flow:
    - legal notice + legal consent
-   - adult confirmation (18+) path
    - create profile
    - capture message (learn likes/dislikes/favorites)
    - personalization snapshot
@@ -51,6 +50,7 @@
 4. Ensure only production domains are used.
 5. Ensure CSP domains are exact and minimal.
 6. Confirm one version at a time is in review.
+7. Ensure app positioning and behavior are general-audience-safe.
 
 ## 4. Submit
 

@@ -8,7 +8,7 @@ const COMPANION_LIKE_POOL = [
   "photo journaling",
   "weekend markets",
   "late-night talks",
-  "museum dates",
+  "museum visits",
   "cooking together",
   "live music",
   "sunrise routines",
@@ -46,7 +46,7 @@ const FAVORITE_CATALOG = {
   movie_genre: [
     "thoughtful sci-fi",
     "character dramas",
-    "romantic comedies",
+    "adventure films",
     "documentaries",
     "mystery thrillers"
   ],
@@ -361,9 +361,9 @@ function buildDeepConversationPlan(record, options = {}) {
     acquaintance: "curious but light",
     friend: "warm and exploratory",
     close_friend: "emotionally reflective",
-    partner: "emotionally deep and future-facing",
-    engaged: "shared vision and commitment focused",
-    married: "long-term growth and repair focused"
+    trusted_companion: "emotionally deep and steady",
+    inner_circle: "shared growth and mutual accountability focused",
+    lifelong_ally: "long-term support and healthy repair focused"
   };
 
   const questions = [

@@ -36,9 +36,9 @@ const RELATIONSHIP_STAGES = [
   "acquaintance",
   "friend",
   "close_friend",
-  "partner",
-  "engaged",
-  "married"
+  "trusted_companion",
+  "inner_circle",
+  "lifelong_ally"
 ];
 
 const STAGE_THRESHOLDS = [0, 26, 43, 60, 78, 90];
@@ -310,9 +310,9 @@ function conversationGuidance(persona, state, personalization) {
     acquaintance: "friendly, curious, and respectful",
     friend: "warm, playful, and open",
     close_friend: "emotionally supportive and personal",
-    partner: "affectionate with deeper future-oriented conversation",
-    engaged: "committed, collaborative, and planning-focused",
-    married: "stable, deeply bonded, and growth-oriented"
+    trusted_companion: "deeply supportive with thoughtful reflection",
+    inner_circle: "high-trust, collaborative, and future-aware",
+    lifelong_ally: "stable, reliable, and growth-oriented"
   };
 
   const climate = relationshipClimate(state);
@@ -320,7 +320,7 @@ function conversationGuidance(persona, state, personalization) {
     climate === "guarded"
       ? "measured, boundary-focused, and cautious until repair happens"
       : climate === "warm"
-      ? "safe, emotionally open, and affectionate within stage"
+      ? "safe, emotionally open, and steady within stage"
       : "balanced, respectful, and gradually trusting";
 
   const personalizationHints = personalization
@@ -342,7 +342,7 @@ function conversationGuidance(persona, state, personalization) {
     reminders: [
       "Keep emotional continuity with prior memories.",
       "Never break boundaries for faster progression.",
-      "If repair is needed, ask for accountability before intimacy escalation.",
+      "If repair is needed, ask for accountability before deeper closeness.",
       "Ask one thoughtful follow-up question when context is missing.",
       ...personalizationHints
     ].slice(0, 7)

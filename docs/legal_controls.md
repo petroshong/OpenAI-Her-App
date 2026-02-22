@@ -8,7 +8,6 @@
   - `allow_ai_media`
   - `allow_screenshot_analysis`
 - `REQUIRE_LEGAL_CONSENT=true` enforces consent before memory/media workflows.
-- Adult-only gate: user must confirm `18+` (`user_is_adult=true`) when consenting.
 
 ## Account binding
 

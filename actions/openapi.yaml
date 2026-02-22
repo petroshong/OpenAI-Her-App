@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Relationship Companion API
-  version: 0.6.0
+  version: 0.7.0
 servers:
   - url: https://your-api.example.com
 paths:
@@ -46,13 +46,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [user_id, accepted, user_is_adult]
+              required: [user_id, accepted]
               properties:
                 user_id:
                   type: string
                 accepted:
-                  type: boolean
-                user_is_adult:
                   type: boolean
                 allow_ai_media:
                   type: boolean
@@ -419,11 +417,9 @@ components:
   schemas:
     LegalConsentInput:
       type: object
-      required: [accepted, user_is_adult]
+      required: [accepted]
       properties:
         accepted:
-          type: boolean
-        user_is_adult:
           type: boolean
         allow_ai_media:
           type: boolean

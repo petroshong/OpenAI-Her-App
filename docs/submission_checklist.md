@@ -30,7 +30,7 @@ Reference: https://developers.openai.com/apps-sdk/deploy/submission
 
 ## Safety and policy
 
-- [ ] App access is restricted to adults (18+) through consent gating
+- [ ] App is general-audience-safe and avoids age-restricted positioning
 - [ ] App avoids mature/explicit sexual content
 - [ ] Abuse protections exist for unsafe user input
 - [ ] Voice output discloses AI generation

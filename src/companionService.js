@@ -79,10 +79,9 @@ function onboardCompanion({
   const user_profile = initialUserProfile();
   const companion_profile = buildCompanionPreferenceProfile(persona);
   const conversation_memory = initialConversationMemory();
-      const legal = legalConsent
+  const legal = legalConsent
     ? recordConsent(defaultLegalState(), {
         accepted: legalConsent.accepted === true,
-        user_is_adult: legalConsent.user_is_adult === true,
         allow_ai_media: legalConsent.allow_ai_media === true,
         allow_screenshot_analysis: legalConsent.allow_screenshot_analysis === true,
         ip_address: ipAddress
@@ -125,7 +124,6 @@ function onboardCompanion({
 function setLegalConsent({
   userId,
   accepted,
-  userIsAdult,
   allowAiMedia,
   allowScreenshotAnalysis,
   ipAddress,
@@ -135,7 +133,6 @@ function setLegalConsent({
   const record = getUserRecord(boundUserId) || {};
   const legal = recordConsent(record.legal || defaultLegalState(), {
     accepted: accepted === true,
-    user_is_adult: userIsAdult === true,
     allow_ai_media: allowAiMedia === true,
     allow_screenshot_analysis: allowScreenshotAnalysis === true,
     ip_address: ipAddress

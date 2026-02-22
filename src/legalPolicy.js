@@ -11,8 +11,7 @@ function defaultLegalState() {
     accepted_at_iso: null,
     accepted_ip_hash: null,
     allow_ai_media: false,
-    allow_screenshot_analysis: false,
-    user_declared_adult: false
+    allow_screenshot_analysis: false
   };
 }
 
@@ -23,7 +22,8 @@ function getLegalNotice() {
     consent_version: CONSENT_VERSION,
     notices: [
       "This is an AI companion and not a human person.",
-      "This app is for adults only (18+).",
+      "This app is designed for general audiences.",
+      "Explicit sexual content is not supported.",
       "Content is for conversation and entertainment, not medical, legal, or mental health advice.",
       "Voice, images, and generated media are AI-generated.",
       "Screenshot analysis only happens for user-provided screenshots with explicit consent."
@@ -44,16 +44,11 @@ function hashIp(value) {
 function recordConsent(currentLegalState, input = {}) {
   const now = new Date().toISOString();
   const accepted = input.accepted === true;
-  const userDeclaredAdult = input.user_is_adult === true;
   if (!accepted) {
     return {
       ...(currentLegalState || defaultLegalState()),
-      accepted: false,
-      user_declared_adult: userDeclaredAdult
+      accepted: false
     };
-  }
-  if (!userDeclaredAdult) {
-    throw new Error("adult confirmation required (18+ only)");
   }
 
   return {
@@ -62,8 +57,7 @@ function recordConsent(currentLegalState, input = {}) {
     accepted_at_iso: now,
     accepted_ip_hash: hashIp(input.ip_address || ""),
     allow_ai_media: input.allow_ai_media === true,
-    allow_screenshot_analysis: input.allow_screenshot_analysis === true,
-    user_declared_adult: true
+    allow_screenshot_analysis: input.allow_screenshot_analysis === true
   };
 }
 
@@ -76,9 +70,6 @@ function assertLegalPermission(record, feature) {
   }
   if (!legal.accepted) {
     throw new Error("legal consent required");
-  }
-  if (!legal.user_declared_adult) {
-    throw new Error("adult confirmation required (18+ only)");
   }
   if (feature === "ai_media" && !legal.allow_ai_media) {
     throw new Error("ai media consent required");

@@ -4,8 +4,8 @@ This repo now includes a submission-oriented OpenAI Apps SDK MCP server plus sup
 
 - Companion profile setup (`gender`, `age 21-80`, `zodiac`, `MBTI`, random options)
 - Autonomous persona mode (no manual setup required; companion self-selects and introduces itself)
-- Adults-only access gate (18+ confirmation required)
-- Multi-factor relationship progression (`acquaintance` to `married`)
+- General-audience-safe consent and disclosure flow
+- Multi-factor trust progression (`acquaintance` to `lifelong_ally`)
 - Persistent memory record per user (local JSON store for development; replace in production)
 - Avatar image prompt + generated image output
 - Voice synthesis + voice transcription
@@ -141,9 +141,9 @@ Stages:
 1. `acquaintance`
 2. `friend`
 3. `close_friend`
-4. `partner`
-5. `engaged`
-6. `married`
+4. `trusted_companion`
+5. `inner_circle`
+6. `lifelong_ally`
 
 Promotions require weighted score growth, respectful behavior, and consistency. Stage skipping is blocked. Repeated disrespect can demote stages and force repair.
 
@@ -166,7 +166,7 @@ Video APIs are account/region dependent. If unavailable, video endpoints return 
 ## Safety baseline
 
 - Companion profile age is restricted to `21-80`.
-- User access is adult-only (18+ self-confirmation required).
+- App behavior is designed to be general-audience-safe.
 - Mature/explicit content is blocked in relationship memory updates.
 - Screenshot analysis requires user consent and explicit per-request confirmation.
 - Voice output includes AI-generated disclosure.

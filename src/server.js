@@ -78,7 +78,6 @@ app.post("/api/legal/consent", (req, res) => {
   const {
     user_id: userId,
     accepted,
-    user_is_adult: userIsAdult,
     allow_ai_media: allowAiMedia,
     allow_screenshot_analysis: allowScreenshotAnalysis,
     ip_address: ipAddress
@@ -87,7 +86,6 @@ app.post("/api/legal/consent", (req, res) => {
     const payload = setLegalConsent({
       userId,
       accepted,
-      userIsAdult,
       allowAiMedia,
       allowScreenshotAnalysis,
       ipAddress,

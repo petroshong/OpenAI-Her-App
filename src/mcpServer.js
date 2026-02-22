@@ -188,11 +188,10 @@ function registerCompanionTools(server, authContextRef) {
     {
       title: "Set Legal Consent",
       description:
-        "Use this after user acknowledgement to record terms consent, adult confirmation (18+), and media/screenshot permissions.",
+        "Use this after user acknowledgement to record terms consent and media/screenshot permissions.",
       inputSchema: z.object({
         user_id: z.string().optional(),
         accepted: z.boolean(),
-        user_is_adult: z.boolean(),
         allow_ai_media: z.boolean().optional(),
         allow_screenshot_analysis: z.boolean().optional(),
         ip_address: z.string().optional()
@@ -217,7 +216,6 @@ function registerCompanionTools(server, authContextRef) {
         const payload = setLegalConsent({
           userId,
           accepted: input.accepted,
-          userIsAdult: input.user_is_adult,
           allowAiMedia: input.allow_ai_media,
           allowScreenshotAnalysis: input.allow_screenshot_analysis,
           ipAddress: input.ip_address,
@@ -324,7 +322,6 @@ function registerCompanionTools(server, authContextRef) {
         legal_consent: z
           .object({
             accepted: z.boolean(),
-            user_is_adult: z.boolean(),
             allow_ai_media: z.boolean().optional(),
             allow_screenshot_analysis: z.boolean().optional()
           })

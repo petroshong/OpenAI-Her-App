@@ -10,7 +10,7 @@ Replace placeholders before publishing.
 
 - The companion is AI, not a human person.
 - The service is not medical, legal, financial, or mental health advice.
-- Service is available only to adults (18+).
+- The service is intended for general-audience-safe conversation.
 
 ## 3. Acceptable Use
 
