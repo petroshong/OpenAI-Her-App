@@ -29,11 +29,13 @@
 ## 2. Builder configuration
 
 1. In ChatGPT app builder, connect MCP server URL `https://<your-domain>/mcp`.
-   - Apply Builder instruction template from `docs/chatgpt_builder_setup.md`.
+   - No instruction paste is required. The MCP server ships with built-in companion routing instructions.
+   - Use `docs/chatgpt_builder_setup.md` only if you want to override behavior.
 2. Configure app name/icon/description/support contact.
 3. Add privacy policy URL.
 4. Test each tool flow:
    - open session (auto-resume or auto-bootstrap)
+   - handle message (normal turn flow)
    - legal notice + legal consent
    - create profile
    - onboard with media (selfie + voice + optional video)

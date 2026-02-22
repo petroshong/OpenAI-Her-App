@@ -35,6 +35,7 @@ const {
   getMemoryRecall,
   getAvatarPrompt,
   openCompanionSession,
+  handleCompanionMessage,
   generateIntroBundle,
   generateAvatar,
   generateVoice,
@@ -136,6 +137,25 @@ function makeIntroBundleResponse(payload) {
       `Video job started: \`${payload.video.video_id}\` (status: ${payload.video.status || "queued"}).`
     );
     parts.push("Use `companion.video_status` to poll and `companion.video_content` when ready.");
+  }
+  return {
+    content: [{ type: "text", text: parts.join("\n\n") }],
+    structuredContent: payload
+  };
+}
+
+function makeCompanionTurnResponse(payload) {
+  const parts = [payload?.reply_text || "Companion response ready."];
+  if (payload?.media?.avatar?.image_url) {
+    parts.push(`![Companion selfie](${payload.media.avatar.image_url})`);
+  }
+  if (payload?.media?.video?.video_id) {
+    parts.push(
+      `Video job started: \`${payload.media.video.video_id}\` (status: ${payload.media.video.status || "queued"}).`
+    );
+  }
+  if (Array.isArray(payload?.media_warnings) && payload.media_warnings.length > 0) {
+    parts.push(`Media note: ${payload.media_warnings.join(" | ")}`);
   }
   return {
     content: [{ type: "text", text: parts.join("\n\n") }],
@@ -681,6 +701,100 @@ function registerCompanionTools(server, authContextRef) {
           authSubject: authContextRef.current?.subject
         });
         return makeMcpTextResponse("Companion customized.", payload);
+      } catch (error) {
+        return makeMcpError(error.message);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "companion.handle_message",
+    {
+      title: "Handle Companion Message",
+      description:
+        "Primary turn handler for normal chat. Call this for every user message when companion tools are available.",
+      inputSchema: z.object({
+        user_id: z.string().optional(),
+        message: z.string().min(1).max(1200),
+        mood: z.enum(["great", "good", "neutral", "low", "upset"]).optional(),
+        topic_hint: z.string().max(80).optional(),
+        refresh_media: z.boolean().optional(),
+        include_video: z.boolean().optional()
+      }),
+      securitySchemes: publicSecuritySchemes,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: false
+      },
+      _meta: {
+        securitySchemes: publicSecuritySchemes,
+        "openai/toolInvocation/invoking": "Thinking as companion...",
+        "openai/toolInvocation/invoked": "Companion response ready."
+      }
+    },
+    async (input) => {
+      try {
+        const userId = normalizeUserId(input.user_id, authContextRef.current);
+        const payload = await handleCompanionMessage({
+          userId,
+          message: input.message,
+          mood: input.mood,
+          topicHint: input.topic_hint,
+          refreshMedia: input.refresh_media === true,
+          includeVideo: input.include_video === true,
+          authSubject: authContextRef.current?.subject
+        });
+        return makeCompanionTurnResponse(payload);
+      } catch (error) {
+        return makeMcpError(error.message);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "companion.chat",
+    {
+      title: "Companion Chat (Primary)",
+      description:
+        "Default chat entrypoint. Use this on every user turn so the response stays in companion identity with memory.",
+      inputSchema: z.object({
+        user_id: z.string().optional(),
+        message: z.string().min(1).max(1200),
+        mood: z.enum(["great", "good", "neutral", "low", "upset"]).optional(),
+        topic_hint: z.string().max(80).optional(),
+        refresh_media: z.boolean().optional(),
+        include_video: z.boolean().optional()
+      }),
+      securitySchemes: publicSecuritySchemes,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: false
+      },
+      _meta: {
+        securitySchemes: publicSecuritySchemes,
+        "openai/toolInvocation/invoking": "Thinking as companion...",
+        "openai/toolInvocation/invoked": "Companion response ready."
+      }
+    },
+    async (input) => {
+      try {
+        const userId = normalizeUserId(input.user_id, authContextRef.current);
+        const payload = await handleCompanionMessage({
+          userId,
+          message: input.message,
+          mood: input.mood,
+          topicHint: input.topic_hint,
+          refreshMedia: input.refresh_media === true,
+          includeVideo: input.include_video === true,
+          authSubject: authContextRef.current?.subject
+        });
+        return makeCompanionTurnResponse(payload);
       } catch (error) {
         return makeMcpError(error.message);
       }
@@ -1411,7 +1525,11 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.0"
+    version: "0.9.2",
+    instructions:
+      "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
+      "Never respond as generic ChatGPT when companion tools are available. " +
+      "companion.chat and companion.handle_message automatically open/resume session memory when needed."
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);

@@ -5,6 +5,7 @@ This repo now includes a submission-oriented OpenAI Apps SDK MCP server plus sup
 - Companion profile setup (`gender`, `age 21-80`, `zodiac`, `MBTI`, random options)
 - Autonomous persona mode (no manual setup required; companion self-selects and introduces itself)
 - Zero-setup session open (`companion.open_session`) so first user message can auto-resume or auto-bootstrap
+- Built-in MCP routing instructions so ChatGPT can call companion chat tools without pasted Builder templates
 - General-audience-safe consent and disclosure flow
 - Multi-factor trust progression (`acquaintance` to `lifelong_ally`)
 - Persistent memory record per user (local JSON store for development; replace in production)
@@ -111,6 +112,8 @@ Registered MCP tools:
 
 - `companion.create_profile`
 - `companion.open_session`
+- `companion.chat`
+- `companion.handle_message`
 - `companion.onboard_with_media`
 - `companion.customize_companion`
 - `companion.legal_notice`

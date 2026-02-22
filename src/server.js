@@ -17,6 +17,7 @@ const {
   getMemoryRecall,
   getAvatarPrompt,
   openCompanionSession,
+  handleCompanionMessage,
   generateIntroBundle,
   generateAvatar,
   generateVoice,
@@ -147,6 +148,32 @@ app.post("/api/session/open", async (req, res) => {
     const payload = await openCompanionSession({
       userId,
       preferences,
+      refreshMedia,
+      includeVideo,
+      authSubject: authSubject(req)
+    });
+    return res.json(payload);
+  } catch (error) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    return res.status(statusCode).json({ error: error.message });
+  }
+});
+
+app.post("/api/chat/turn", async (req, res) => {
+  const {
+    user_id: userId,
+    message,
+    mood,
+    topic_hint: topicHint,
+    refresh_media: refreshMedia,
+    include_video: includeVideo
+  } = req.body || {};
+  try {
+    const payload = await handleCompanionMessage({
+      userId,
+      message,
+      mood,
+      topicHint,
       refreshMedia,
       includeVideo,
       authSubject: authSubject(req)

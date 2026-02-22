@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Relationship Companion API
-  version: 0.9.0
+  version: 0.9.2
 servers:
   - url: https://your-api.example.com
 paths:
@@ -125,6 +125,34 @@ paths:
       responses:
         "200":
           description: Companion session opened
+  /api/chat/turn:
+    post:
+      operationId: handleCompanionMessage
+      summary: Handle a companion chat turn (auto session + memory + media intents)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                user_id:
+                  type: string
+                message:
+                  type: string
+                mood:
+                  type: string
+                  enum: [great, good, neutral, low, upset]
+                topic_hint:
+                  type: string
+                refresh_media:
+                  type: boolean
+                include_video:
+                  type: boolean
+      responses:
+        "200":
+          description: Companion turn handled
   /api/relationship/update:
     post:
       operationId: updateRelationship

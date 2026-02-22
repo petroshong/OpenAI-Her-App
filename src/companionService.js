@@ -738,6 +738,177 @@ async function openCompanionSession({
   };
 }
 
+function personaIdentityLine(persona) {
+  const bits = [
+    persona?.age ? `${persona.age}` : null,
+    persona?.gender || null,
+    persona?.zodiac ? `${persona.zodiac}` : null,
+    persona?.mbti || null
+  ].filter(Boolean);
+  return bits.length > 0 ? bits.join(" / ") : "companion persona";
+}
+
+function inferMediaIntent(message) {
+  const text = String(message || "").toLowerCase();
+  return {
+    wantsSelfie: /\b(selfie|photo|picture|pic|show me you|see you)\b/.test(text),
+    wantsVoice: /\b(voice|audio|speak|say this|read this)\b/.test(text),
+    wantsVideo: /\b(video|clip|movie|sora)\b/.test(text),
+    asksIdentity: /\b(who are you|what are you)\b/.test(text)
+  };
+}
+
+function buildTurnReply({ message, record, personalization, guidance, mediaIntent }) {
+  const safeMessage = sanitizeText(message, 500) || "";
+  const knownLike = personalization?.known_likes?.[0] || null;
+  const identity = personaIdentityLine(record?.persona || {});
+
+  if (mediaIntent.asksIdentity) {
+    return (
+      `I am your companion (${identity}), and I keep continuity across our chats. ` +
+      `I focus on real memory, trust, and personality evolution. ` +
+      `If you want, I can refresh my selfie, voice, or a short intro video now.`
+    );
+  }
+
+  const opening = safeMessage
+    ? `I hear you: "${safeMessage}".`
+    : "I am here with you.";
+  const memoryTouch = knownLike
+    ? `I remember you like ${knownLike}.`
+    : "I am still learning your preferences.";
+  const tone = guidance?.tone_target
+    ? `I will keep this ${guidance.tone_target.toLowerCase()}.`
+    : "I will keep this warm and grounded.";
+
+  return `${opening} ${memoryTouch} ${tone} What feels most important to talk about right now?`;
+}
+
+async function handleCompanionMessage({
+  userId,
+  message,
+  mood,
+  topicHint,
+  refreshMedia,
+  includeVideo,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const safeMessage = sanitizeText(message, 1200);
+  if (!safeMessage) {
+    throw new Error("message is required");
+  }
+
+  await openCompanionSession({
+    userId: boundUserId,
+    refreshMedia,
+    includeVideo: includeVideo === true,
+    authSubject
+  });
+
+  const captureResult = captureConversationMessage({
+    userId: boundUserId,
+    message: safeMessage,
+    mood,
+    topicHint,
+    authSubject
+  });
+
+  const record = getUserRecord(boundUserId);
+  if (!record?.persona || !record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+
+  const personalization = buildPersonalizationSnapshot(record);
+  const guidance = conversationGuidance(
+    record.persona,
+    record.relationship_state,
+    personalization
+  );
+  const mediaIntent = inferMediaIntent(safeMessage);
+  const media = {};
+  const fallback = {};
+  const media_warnings = [];
+
+  if (mediaIntent.wantsSelfie) {
+    try {
+      const avatar = await generateAvatar({
+        userId: boundUserId,
+        includeBase64: false,
+        authSubject
+      });
+      media.avatar = {
+        image_url: avatar.image_url || null,
+        prompt: avatar.prompt || null
+      };
+    } catch (error) {
+      media_warnings.push(`avatar_unavailable: ${error.message}`);
+      fallback.avatar_prompt = buildAvatarPrompt(record.persona);
+    }
+  }
+
+  if (mediaIntent.wantsVoice) {
+    const script = sanitizeText(
+      `Hey, I am here with you. ${guidance.tone_target || "Let us talk."}`,
+      220
+    );
+    try {
+      const voice = await generateVoice({
+        userId: boundUserId,
+        text: script,
+        includeBase64: false,
+        authSubject
+      });
+      media.voice = voice;
+    } catch (error) {
+      media_warnings.push(`voice_unavailable: ${error.message}`);
+      fallback.voice_script = script;
+    }
+  }
+
+  if (mediaIntent.wantsVideo || includeVideo === true) {
+    const prompt = sanitizeText(
+      `A friendly intro clip of the companion persona: ${record.persona.age}-year-old ${record.persona.gender}, respectful tone, clean setting.`,
+      220
+    );
+    try {
+      const video = await generateCompanionVideo({
+        userId: boundUserId,
+        prompt,
+        seconds: 6,
+        autoPoll: false,
+        includeBase64: false,
+        authSubject
+      });
+      media.video = video;
+    } catch (error) {
+      media_warnings.push(`video_unavailable: ${error.message}`);
+      fallback.video_prompt = prompt;
+    }
+  }
+
+  const reply_text = buildTurnReply({
+    message: safeMessage,
+    record,
+    personalization,
+    guidance,
+    mediaIntent
+  });
+
+  return {
+    user_id: boundUserId,
+    reply_text,
+    persona: record.persona,
+    relationship_state: captureResult.relationship_state || record.relationship_state,
+    personalization,
+    conversation_guidance: guidance,
+    safety_notice: captureResult.safety_notice || null,
+    media,
+    fallback,
+    media_warnings
+  };
+}
+
 async function transcribeInputVoice({ audioBase64, filename, language }) {
   if (!mustString(audioBase64)) {
     throw new Error("audio_base64 is required");
@@ -885,6 +1056,7 @@ module.exports = {
   getMemoryRecall,
   getAvatarPrompt,
   openCompanionSession,
+  handleCompanionMessage,
   generateIntroBundle,
   generateAvatar,
   generateVoice,

@@ -47,6 +47,7 @@ Memory rules:
 Tool behavior rules:
 
 - Prefer calling:
+  - `companion.handle_message` for normal user chat turns
   - `companion.open_session` as the first tool call on every fresh/opened chat
   - `companion.onboard_with_media` when user wants immediate rich intro generation
   - `companion.legal_notice` and `companion.set_legal_consent` early in onboarding
