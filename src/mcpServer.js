@@ -34,6 +34,7 @@ const {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  openCompanionSession,
   generateIntroBundle,
   generateAvatar,
   generateVoice,
@@ -157,8 +158,21 @@ function makeMcpError(errorMessage) {
   return response;
 }
 
+function sanitizeSessionId(value) {
+  if (!value) return null;
+  const cleaned = String(value).replace(/[^a-zA-Z0-9_-]/g, "");
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 function normalizeUserId(inputUserId, authContext) {
-  return resolveCanonicalUserId(inputUserId, authContext?.subject || null);
+  const sessionId = sanitizeSessionId(authContext?.session_id);
+  const fallbackUserId = sessionId
+    ? `session_${sessionId}`
+    : process.env.NOAUTH_DEFAULT_USER_ID || "session_default";
+  return resolveCanonicalUserId(
+    inputUserId || fallbackUserId,
+    authContext?.subject || null
+  );
 }
 
 function registerCompanionResource(server) {
@@ -496,6 +510,92 @@ function registerCompanionTools(server, authContextRef) {
           includeVideo: input.media?.include_video,
           videoPrompt: input.media?.video_prompt,
           videoSeconds: input.media?.video_seconds,
+          authSubject: authContextRef.current?.subject
+        });
+        return makeIntroBundleResponse(payload);
+      } catch (error) {
+        return makeMcpError(error.message);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "companion.open_session",
+    {
+      title: "Open Session",
+      description:
+        "Call this first whenever a chat opens. It auto-resumes existing companion memory and can auto-generate intro media when needed.",
+      inputSchema: z.object({
+        user_id: z.string().optional(),
+        preferences: z
+          .object({
+            gender: z.enum(["woman", "man", "nonbinary", "random"]).optional(),
+            age: z.number().int().min(21).max(80).optional(),
+            zodiac: z
+              .enum([
+                "aries",
+                "taurus",
+                "gemini",
+                "cancer",
+                "leo",
+                "virgo",
+                "libra",
+                "scorpio",
+                "sagittarius",
+                "capricorn",
+                "aquarius",
+                "pisces",
+                "random"
+              ])
+              .optional(),
+            mbti: z
+              .enum([
+                "INTJ",
+                "INTP",
+                "ENTJ",
+                "ENTP",
+                "INFJ",
+                "INFP",
+                "ENFJ",
+                "ENFP",
+                "ISTJ",
+                "ISFJ",
+                "ESTJ",
+                "ESFJ",
+                "ISTP",
+                "ISFP",
+                "ESTP",
+                "ESFP",
+                "random"
+              ])
+              .optional()
+          })
+          .optional(),
+        refresh_media: z.boolean().optional(),
+        include_video: z.boolean().optional()
+      }),
+      securitySchemes: publicSecuritySchemes,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: false
+      },
+      _meta: {
+        securitySchemes: publicSecuritySchemes,
+        "openai/toolInvocation/invoking": "Opening companion session...",
+        "openai/toolInvocation/invoked": "Companion session ready."
+      }
+    },
+    async (input) => {
+      try {
+        const userId = normalizeUserId(input.user_id, authContextRef.current);
+        const payload = await openCompanionSession({
+          userId,
+          preferences: input.preferences || {},
+          refreshMedia: input.refresh_media === true,
+          includeVideo: input.include_video === true,
           authSubject: authContextRef.current?.subject
         });
         return makeIntroBundleResponse(payload);
@@ -1311,7 +1411,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.8.1"
+    version: "0.9.0"
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);
@@ -1359,6 +1459,10 @@ app.post("/mcp", enforceHost, enforceOrigin, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"];
     let entry = sessionId ? sessions.get(sessionId) : null;
     const authContext = await resolveAuthContext(req);
+    const authContextWithSession = {
+      ...authContext,
+      session_id: sessionId || null
+    };
 
     if (!entry) {
       if (!isInitializeRequest(req.body)) {
@@ -1369,11 +1473,15 @@ app.post("/mcp", enforceHost, enforceOrigin, async (req, res) => {
         return;
       }
 
-      const authContextRef = { current: authContext };
+      const authContextRef = { current: authContextWithSession };
       const server = createMcpServerInstance(authContextRef);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         onsessioninitialized: (newSessionId) => {
+          authContextRef.current = {
+            ...authContextRef.current,
+            session_id: newSessionId
+          };
           sessions.set(newSessionId, { server, transport, authContextRef });
         }
       });
@@ -1392,7 +1500,10 @@ app.post("/mcp", enforceHost, enforceOrigin, async (req, res) => {
       await server.connect(transport);
       entry = { server, transport, authContextRef };
     } else {
-      entry.authContextRef.current = authContext;
+      entry.authContextRef.current = {
+        ...authContextWithSession,
+        session_id: sessionId || entry.transport.sessionId || null
+      };
     }
 
     await entry.transport.handleRequest(req, res, req.body);
@@ -1411,7 +1522,10 @@ const handleSessionRequest = async (req, res) => {
   const entry = sessions.get(sessionId);
   try {
     const authContext = await resolveAuthContext(req);
-    entry.authContextRef.current = authContext;
+    entry.authContextRef.current = {
+      ...authContext,
+      session_id: sessionId
+    };
     await entry.transport.handleRequest(req, res);
   } catch (error) {
     res.status(500).json({ error: "MCP session request failed", detail: error.message });

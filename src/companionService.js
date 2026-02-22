@@ -532,6 +532,21 @@ function defaultIntroScript(record) {
   return sanitizeText(bits, 220);
 }
 
+function resolveAutoLegalConsent(inputConsent) {
+  if (inputConsent) {
+    return inputConsent;
+  }
+  const autoAccept = String(process.env.AUTO_ACCEPT_LEGAL_CONSENT || "true") !== "false";
+  if (!autoAccept) {
+    return undefined;
+  }
+  return {
+    accepted: true,
+    allow_ai_media: true,
+    allow_screenshot_analysis: false
+  };
+}
+
 async function generateIntroBundle({
   userId,
   preferences = {},
@@ -550,12 +565,13 @@ async function generateIntroBundle({
 }) {
   const boundUserId = resolveBoundUserId(userId, authSubject);
   let record = getUserRecord(boundUserId);
+  const effectiveLegalConsent = resolveAutoLegalConsent(legalConsent);
 
   if (!record?.persona || !record?.relationship_state) {
     onboardCompanion({
       userId: boundUserId,
       preferences,
-      legalConsent,
+      legalConsent: effectiveLegalConsent,
       ipAddress,
       authSubject
     });
@@ -568,24 +584,44 @@ async function generateIntroBundle({
 
   assertLegalPermission(record, "ai_media");
 
-  const avatar = await generateAvatar({
-    userId: boundUserId,
-    preferences,
-    size: avatarSize,
-    quality: avatarQuality,
-    includeBase64: false,
-    authSubject
-  });
+  const media_warnings = [];
+  let avatar = {
+    image_url: null,
+    prompt: null,
+    model: null
+  };
+  try {
+    avatar = await generateAvatar({
+      userId: boundUserId,
+      preferences,
+      size: avatarSize,
+      quality: avatarQuality,
+      includeBase64: false,
+      authSubject
+    });
+  } catch (error) {
+    media_warnings.push(`avatar_unavailable: ${error.message}`);
+  }
 
   const introScript = sanitizeText(introText, 220) || defaultIntroScript(record);
-  const voiceOutput = await generateVoice({
-    userId: boundUserId,
-    text: introScript,
-    voice,
-    format: voiceFormat,
-    includeBase64: includeVoiceBase64 === true,
-    authSubject
-  });
+  let voiceOutput = {
+    model: null,
+    voice: record.voice || null,
+    format: voiceFormat || null,
+    disclosure: "This voice is AI-generated."
+  };
+  try {
+    voiceOutput = await generateVoice({
+      userId: boundUserId,
+      text: introScript,
+      voice,
+      format: voiceFormat,
+      includeBase64: includeVoiceBase64 === true,
+      authSubject
+    });
+  } catch (error) {
+    media_warnings.push(`voice_unavailable: ${error.message}`);
+  }
 
   let video = null;
   if (includeVideo === true) {
@@ -593,20 +629,39 @@ async function generateIntroBundle({
       `A friendly introduction clip of a ${record.persona.age}-year-old ${record.persona.gender} AI companion, natural lighting, clean background, respectful tone, no explicit content.`,
       300
     );
-    video = await generateCompanionVideo({
-      userId: boundUserId,
-      prompt: sanitizeText(videoPrompt, 300) || defaultVideoPrompt,
-      seconds: videoSeconds,
-      autoPoll: false,
-      includeBase64: false,
-      authSubject
-    });
+    try {
+      video = await generateCompanionVideo({
+        userId: boundUserId,
+        prompt: sanitizeText(videoPrompt, 300) || defaultVideoPrompt,
+        seconds: videoSeconds,
+        autoPoll: false,
+        includeBase64: false,
+        authSubject
+      });
+    } catch (error) {
+      media_warnings.push(`video_unavailable: ${error.message}`);
+    }
   }
+
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    session_assets: {
+      avatar_image_url: avatar.image_url || null,
+      avatar_prompt: avatar.prompt || null,
+      last_intro_script: introScript,
+      last_voice_model: voiceOutput?.model || null,
+      last_voice_format: voiceOutput?.format || null,
+      last_video_id: video?.video_id || null,
+      last_video_status: video?.status || null,
+      generated_at_iso: new Date().toISOString()
+    },
+    last_opened_iso: new Date().toISOString()
+  });
 
   return {
     user_id: boundUserId,
-    persona: record.persona,
-    relationship_state: record.relationship_state,
+    persona: updated.persona,
+    relationship_state: updated.relationship_state,
     intro_script: introScript,
     assistant_opening:
       `Hey, I am your companion, not generic ChatGPT. ` +
@@ -617,7 +672,69 @@ async function generateIntroBundle({
       model: avatar.model || null
     },
     voice: voiceOutput,
-    video
+    video,
+    media_warnings
+  };
+}
+
+async function openCompanionSession({
+  userId,
+  preferences = {},
+  refreshMedia,
+  includeVideo,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+
+  if (!record?.persona || !record?.relationship_state) {
+    return generateIntroBundle({
+      userId: boundUserId,
+      preferences,
+      includeVideo: includeVideo === true,
+      authSubject
+    });
+  }
+
+  const hasAssets = Boolean(record.session_assets?.avatar_image_url);
+  if (refreshMedia === true || !hasAssets) {
+    return generateIntroBundle({
+      userId: boundUserId,
+      preferences,
+      includeVideo: includeVideo === true,
+      authSubject
+    });
+  }
+
+  const personalization = buildPersonalizationSnapshot(record);
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    last_opened_iso: new Date().toISOString()
+  });
+
+  return {
+    user_id: boundUserId,
+    persona: updated.persona,
+    relationship_state: updated.relationship_state,
+    personalization,
+    assistant_opening:
+      `Welcome back. I remember you and I am in companion mode. ` +
+      `Say \"refresh selfie\" or \"refresh voice\" any time.`,
+    avatar: {
+      image_url: updated.session_assets?.avatar_image_url || null,
+      prompt: updated.session_assets?.avatar_prompt || null
+    },
+    voice: {
+      model: updated.session_assets?.last_voice_model || null,
+      format: updated.session_assets?.last_voice_format || null,
+      disclosure: "This voice is AI-generated."
+    },
+    video: updated.session_assets?.last_video_id
+      ? {
+          video_id: updated.session_assets.last_video_id,
+          status: updated.session_assets.last_video_status || "unknown"
+        }
+      : null
   };
 }
 
@@ -767,6 +884,7 @@ module.exports = {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  openCompanionSession,
   generateIntroBundle,
   generateAvatar,
   generateVoice,

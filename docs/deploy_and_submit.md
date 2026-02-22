@@ -33,6 +33,7 @@
 2. Configure app name/icon/description/support contact.
 3. Add privacy policy URL.
 4. Test each tool flow:
+   - open session (auto-resume or auto-bootstrap)
    - legal notice + legal consent
    - create profile
    - onboard with media (selfie + voice + optional video)

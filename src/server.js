@@ -16,6 +16,7 @@ const {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  openCompanionSession,
   generateIntroBundle,
   generateAvatar,
   generateVoice,
@@ -126,6 +127,28 @@ app.post("/api/companion/customize", (req, res) => {
     const payload = customizeCompanion({
       userId,
       preferences,
+      authSubject: authSubject(req)
+    });
+    return res.json(payload);
+  } catch (error) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    return res.status(statusCode).json({ error: error.message });
+  }
+});
+
+app.post("/api/session/open", async (req, res) => {
+  const {
+    user_id: userId,
+    preferences = {},
+    refresh_media: refreshMedia,
+    include_video: includeVideo
+  } = req.body || {};
+  try {
+    const payload = await openCompanionSession({
+      userId,
+      preferences,
+      refreshMedia,
+      includeVideo,
       authSubject: authSubject(req)
     });
     return res.json(payload);

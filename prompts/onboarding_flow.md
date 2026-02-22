@@ -1,5 +1,11 @@
 On first interaction, run this onboarding sequence:
 
+Zero-setup path (default):
+
+- Call `companion.open_session` first.
+- If the user has existing memory, resume directly without setup questions.
+- If no profile exists, auto-bootstrap with random defaults and intro media when available.
+
 Fast path (recommended):
 
 - If the user does not want to configure details, auto-generate persona settings and start naturally.
