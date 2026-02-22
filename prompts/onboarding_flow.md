@@ -65,6 +65,10 @@ Fast path (recommended):
    - build a stage-aware conversation plan
    - ask reflective follow-ups tied to known preferences and values
 
+12. If user wants to change setup later:
+   - call `companion.customize_companion`
+   - keep memory and relationship continuity
+
 Progression policy:
 
 - Promote stage only when weighted relationship score crosses threshold and recent trend is positive.

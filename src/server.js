@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const { ensureStore } = require("./memoryStore");
 const {
   onboardCompanion,
+  customizeCompanion,
   setLegalConsent,
   getLegalState,
   getLegalNotice,
@@ -116,6 +117,21 @@ app.post("/api/onboard", (req, res) => {
     return res.json(payload);
   } catch (error) {
     return res.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/companion/customize", (req, res) => {
+  const { user_id: userId, preferences = {} } = req.body || {};
+  try {
+    const payload = customizeCompanion({
+      userId,
+      preferences,
+      authSubject: authSubject(req)
+    });
+    return res.json(payload);
+  } catch (error) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 

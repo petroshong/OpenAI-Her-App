@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Relationship Companion API
-  version: 0.8.0
+  version: 0.8.1
 servers:
   - url: https://your-api.example.com
 paths:
@@ -84,6 +84,25 @@ paths:
       responses:
         "200":
           description: Onboarding completed
+  /api/companion/customize:
+    post:
+      operationId: customizeCompanion
+      summary: Update companion setup without resetting memory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id:
+                  type: string
+                preferences:
+                  $ref: "#/components/schemas/CompanionPreferences"
+      responses:
+        "200":
+          description: Companion setup updated
   /api/relationship/update:
     post:
       operationId: updateRelationship

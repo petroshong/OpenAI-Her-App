@@ -22,6 +22,7 @@ const {
 const { ensureStore } = require("./memoryStore");
 const {
   onboardCompanion,
+  customizeCompanion,
   setLegalConsent,
   getLegalState,
   getLegalNotice,
@@ -390,9 +391,9 @@ function registerCompanionTools(server, authContextRef) {
     server,
     "companion.onboard_with_media",
     {
-      title: "Onboard With Media",
+      title: "Start Session With Media",
       description:
-        "Use this once at first connection to set or randomize persona, then generate a selfie image, voice intro, and optional starter video.",
+        "Call this first in a new chat to set or randomize persona, then generate a selfie image, voice intro, and optional starter video.",
       inputSchema: z.object({
         user_id: z.string().optional(),
         setup: z
@@ -498,6 +499,88 @@ function registerCompanionTools(server, authContextRef) {
           authSubject: authContextRef.current?.subject
         });
         return makeIntroBundleResponse(payload);
+      } catch (error) {
+        return makeMcpError(error.message);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "companion.customize_companion",
+    {
+      title: "Customize Companion",
+      description:
+        "Use this when the user wants to change companion setup (gender, age 21-80, zodiac, MBTI, or random) without resetting memory.",
+      inputSchema: z.object({
+        user_id: z.string().optional(),
+        preferences: z
+          .object({
+            gender: z.enum(["woman", "man", "nonbinary", "random"]).optional(),
+            age: z.number().int().min(21).max(80).optional(),
+            zodiac: z
+              .enum([
+                "aries",
+                "taurus",
+                "gemini",
+                "cancer",
+                "leo",
+                "virgo",
+                "libra",
+                "scorpio",
+                "sagittarius",
+                "capricorn",
+                "aquarius",
+                "pisces",
+                "random"
+              ])
+              .optional(),
+            mbti: z
+              .enum([
+                "INTJ",
+                "INTP",
+                "ENTJ",
+                "ENTP",
+                "INFJ",
+                "INFP",
+                "ENFJ",
+                "ENFP",
+                "ISTJ",
+                "ISFJ",
+                "ESTJ",
+                "ESFJ",
+                "ISTP",
+                "ISFP",
+                "ESTP",
+                "ESFP",
+                "random"
+              ])
+              .optional()
+          })
+          .optional()
+      }),
+      securitySchemes: publicSecuritySchemes,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: false
+      },
+      _meta: {
+        securitySchemes: publicSecuritySchemes,
+        "openai/toolInvocation/invoking": "Applying companion customization...",
+        "openai/toolInvocation/invoked": "Companion customization updated."
+      }
+    },
+    async (input) => {
+      try {
+        const userId = normalizeUserId(input.user_id, authContextRef.current);
+        const payload = customizeCompanion({
+          userId,
+          preferences: input.preferences || {},
+          authSubject: authContextRef.current?.subject
+        });
+        return makeMcpTextResponse("Companion customized.", payload);
       } catch (error) {
         return makeMcpError(error.message);
       }
@@ -1228,7 +1311,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.8.0"
+    version: "0.8.1"
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);

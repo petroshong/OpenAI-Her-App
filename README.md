@@ -44,6 +44,7 @@ This repo now includes a submission-oriented OpenAI Apps SDK MCP server plus sup
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/terms_of_service_template.md`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/submission_checklist.md`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/pre_submit_runbook.md`
+- `/Users/petroshong/Desktop/Personality on ChatGPT/docs/chatgpt_builder_setup.md`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/.env.production.example`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/scripts/verify_production_env.sh`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/scripts/pre_submit_smoke.sh`
@@ -109,6 +110,7 @@ Registered MCP tools:
 
 - `companion.create_profile`
 - `companion.onboard_with_media`
+- `companion.customize_companion`
 - `companion.legal_notice`
 - `companion.set_legal_consent`
 - `companion.legal_state`

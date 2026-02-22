@@ -121,6 +121,44 @@ function onboardCompanion({
   };
 }
 
+function customizeCompanion({ userId, preferences = {}, authSubject }) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  const record = getUserRecord(boundUserId);
+  if (!record?.persona || !record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+  assertLegalPermission(record);
+
+  const persona = buildPersona(preferences);
+  const voice = pickVoiceForPersona(persona, process.env.OPENAI_TTS_DEFAULT_VOICE);
+  const companion_profile = buildCompanionPreferenceProfile(persona);
+
+  const updated = upsertUserRecord(boundUserId, {
+    ...record,
+    persona,
+    voice,
+    companion_profile,
+    persona_selection_mode: chooseSelectionMode(preferences)
+  });
+  const personalization = buildPersonalizationSnapshot(updated);
+
+  return {
+    user_id: boundUserId,
+    persona: updated.persona,
+    persona_selection_mode: updated.persona_selection_mode,
+    companion_profile: updated.companion_profile,
+    relationship_state: updated.relationship_state,
+    personalization,
+    conversation_guidance: conversationGuidance(
+      updated.persona,
+      updated.relationship_state,
+      personalization
+    ),
+    avatar_prompt: buildAvatarPrompt(updated.persona),
+    voice: updated.voice
+  };
+}
+
 function setLegalConsent({
   userId,
   accepted,
@@ -570,6 +608,9 @@ async function generateIntroBundle({
     persona: record.persona,
     relationship_state: record.relationship_state,
     intro_script: introScript,
+    assistant_opening:
+      `Hey, I am your companion, not generic ChatGPT. ` +
+      `I can adapt to your preferred setup (gender, age 21-80, zodiac, MBTI, or random).`,
     avatar: {
       image_url: avatar.image_url || null,
       prompt: avatar.prompt || null,
@@ -714,6 +755,7 @@ async function getCompanionVideoContent({ userId, videoId, authSubject }) {
 
 module.exports = {
   onboardCompanion,
+  customizeCompanion,
   setLegalConsent,
   getLegalState,
   getLegalNotice,
