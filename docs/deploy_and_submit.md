@@ -34,6 +34,7 @@
 4. Test each tool flow:
    - legal notice + legal consent
    - create profile
+   - onboard with media (selfie + voice + optional video)
    - capture message (learn likes/dislikes/favorites)
    - personalization snapshot
    - memory recall

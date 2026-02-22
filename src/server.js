@@ -15,6 +15,7 @@ const {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  generateIntroBundle,
   generateAvatar,
   generateVoice,
   transcribeInputVoice,
@@ -256,6 +257,36 @@ app.post("/api/avatar/generate", async (req, res) => {
     return res.json(payload);
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/experience/intro", async (req, res) => {
+  try {
+    const {
+      user_id: userId,
+      setup = {},
+      media = {}
+    } = req.body || {};
+    const payload = await generateIntroBundle({
+      userId,
+      preferences: setup.preferences || {},
+      legalConsent: setup.legal_consent,
+      ipAddress: setup.ip_address,
+      introText: media.intro_text,
+      voice: media.voice,
+      voiceFormat: media.voice_format,
+      avatarSize: media.avatar_size,
+      avatarQuality: media.avatar_quality,
+      includeVideo: media.include_video,
+      videoPrompt: media.video_prompt,
+      videoSeconds: media.video_seconds,
+      includeVoiceBase64: media.include_voice_base64,
+      authSubject: authSubject(req)
+    });
+    return res.json(payload);
+  } catch (error) {
+    const statusCode = error.message.includes("not found") ? 404 : 400;
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 

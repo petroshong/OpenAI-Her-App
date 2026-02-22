@@ -481,6 +481,105 @@ async function generateVoice({
       };
 }
 
+function defaultIntroScript(record) {
+  const persona = record?.persona || {};
+  const favoriteMusic = record?.companion_profile?.favorites?.music || null;
+  const bits = [
+    `Hi, I am your companion. I am ${persona.communication_tone || "warm and friendly"} by default.`,
+    favoriteMusic ? `One of my favorite genres is ${favoriteMusic}.` : null,
+    "Tell me what you are into and I will personalize how we talk."
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return sanitizeText(bits, 220);
+}
+
+async function generateIntroBundle({
+  userId,
+  preferences = {},
+  legalConsent,
+  ipAddress,
+  introText,
+  voice,
+  voiceFormat,
+  avatarSize,
+  avatarQuality,
+  includeVideo,
+  videoPrompt,
+  videoSeconds,
+  includeVoiceBase64,
+  authSubject
+}) {
+  const boundUserId = resolveBoundUserId(userId, authSubject);
+  let record = getUserRecord(boundUserId);
+
+  if (!record?.persona || !record?.relationship_state) {
+    onboardCompanion({
+      userId: boundUserId,
+      preferences,
+      legalConsent,
+      ipAddress,
+      authSubject
+    });
+    record = getUserRecord(boundUserId);
+  }
+
+  if (!record?.persona || !record?.relationship_state) {
+    throw new Error("user profile not found, call onboarding first");
+  }
+
+  assertLegalPermission(record, "ai_media");
+
+  const avatar = await generateAvatar({
+    userId: boundUserId,
+    preferences,
+    size: avatarSize,
+    quality: avatarQuality,
+    includeBase64: false,
+    authSubject
+  });
+
+  const introScript = sanitizeText(introText, 220) || defaultIntroScript(record);
+  const voiceOutput = await generateVoice({
+    userId: boundUserId,
+    text: introScript,
+    voice,
+    format: voiceFormat,
+    includeBase64: includeVoiceBase64 === true,
+    authSubject
+  });
+
+  let video = null;
+  if (includeVideo === true) {
+    const defaultVideoPrompt = sanitizeText(
+      `A friendly introduction clip of a ${record.persona.age}-year-old ${record.persona.gender} AI companion, natural lighting, clean background, respectful tone, no explicit content.`,
+      300
+    );
+    video = await generateCompanionVideo({
+      userId: boundUserId,
+      prompt: sanitizeText(videoPrompt, 300) || defaultVideoPrompt,
+      seconds: videoSeconds,
+      autoPoll: false,
+      includeBase64: false,
+      authSubject
+    });
+  }
+
+  return {
+    user_id: boundUserId,
+    persona: record.persona,
+    relationship_state: record.relationship_state,
+    intro_script: introScript,
+    avatar: {
+      image_url: avatar.image_url || null,
+      prompt: avatar.prompt || null,
+      model: avatar.model || null
+    },
+    voice: voiceOutput,
+    video
+  };
+}
+
 async function transcribeInputVoice({ audioBase64, filename, language }) {
   if (!mustString(audioBase64)) {
     throw new Error("audio_base64 is required");
@@ -626,6 +725,7 @@ module.exports = {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  generateIntroBundle,
   generateAvatar,
   generateVoice,
   transcribeInputVoice,

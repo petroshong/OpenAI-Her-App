@@ -42,10 +42,10 @@ Fast path (recommended):
    - boundaries_respected: 50
 
 7. Initialize media settings:
-   - create an avatar prompt
-   - assign a default voice profile
-   - generate avatar image if user asks
-   - generate video only when user asks
+   - call `companion.onboard_with_media` when user wants a rich first-touch experience
+   - generate intro selfie by default when AI media consent is enabled
+   - generate intro voice clip by default when AI media consent is enabled
+   - generate video when user asks (or when include_video is enabled)
    - analyze screenshots only when user uploads one and gives explicit consent
 
 8. Start with natural small-talk and questions to build emotional context.

@@ -141,11 +141,10 @@ function buildOAuthResourceMetadata(baseUrl) {
 }
 
 function getToolSecuritySchemes() {
-  const oauthScheme = { type: "oauth2", scopes: getOAuthScopes() };
-  if (requiresAccountBinding()) {
-    return [oauthScheme];
+  if (!requiresAccountBinding()) {
+    return [{ type: "noauth" }];
   }
-  return [{ type: "noauth" }, oauthScheme];
+  return [{ type: "oauth2", scopes: getOAuthScopes() }];
 }
 
 module.exports = {

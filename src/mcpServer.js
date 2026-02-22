@@ -33,6 +33,7 @@ const {
   getDeepConversationPlan,
   getMemoryRecall,
   getAvatarPrompt,
+  generateIntroBundle,
   generateAvatar,
   generateVoice,
   transcribeInputVoice,
@@ -110,6 +111,36 @@ function makeMcpTextResponse(title, payload) {
   };
 }
 
+function makeAvatarResponse(payload) {
+  const preview = payload?.image_url
+    ? `Avatar generated.\n\n![Companion selfie](${payload.image_url})`
+    : "Avatar generated.";
+  return {
+    content: [{ type: "text", text: preview }],
+    structuredContent: payload
+  };
+}
+
+function makeIntroBundleResponse(payload) {
+  const parts = ["Intro bundle ready."];
+  if (payload?.avatar?.image_url) {
+    parts.push(`![Companion selfie](${payload.avatar.image_url})`);
+  }
+  if (payload?.intro_script) {
+    parts.push(`Voice script:\n${payload.intro_script}`);
+  }
+  if (payload?.video?.video_id) {
+    parts.push(
+      `Video job started: \`${payload.video.video_id}\` (status: ${payload.video.status || "queued"}).`
+    );
+    parts.push("Use `companion.video_status` to poll and `companion.video_content` when ready.");
+  }
+  return {
+    content: [{ type: "text", text: parts.join("\n\n") }],
+    structuredContent: payload
+  };
+}
+
 function makeMcpError(errorMessage) {
   const response = {
     isError: true,
@@ -174,7 +205,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Loading legal notice...",
         "openai/toolInvocation/invoked": "Legal notice ready."
       }
@@ -205,7 +235,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Recording consent...",
         "openai/toolInvocation/invoked": "Consent recorded."
       }
@@ -247,7 +276,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Checking legal state...",
         "openai/toolInvocation/invoked": "Legal state fetched."
       }
@@ -337,7 +365,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Creating companion profile...",
         "openai/toolInvocation/invoked": "Companion profile ready."
       }
@@ -353,6 +380,124 @@ function registerCompanionTools(server, authContextRef) {
           authSubject: authContextRef.current?.subject
         });
         return makeMcpTextResponse("Companion profile created.", payload);
+      } catch (error) {
+        return makeMcpError(error.message);
+      }
+    }
+  );
+
+  registerAppTool(
+    server,
+    "companion.onboard_with_media",
+    {
+      title: "Onboard With Media",
+      description:
+        "Use this once at first connection to set or randomize persona, then generate a selfie image, voice intro, and optional starter video.",
+      inputSchema: z.object({
+        user_id: z.string().optional(),
+        setup: z
+          .object({
+            preferences: z
+              .object({
+                gender: z.enum(["woman", "man", "nonbinary", "random"]).optional(),
+                age: z.number().int().min(21).max(80).optional(),
+                zodiac: z
+                  .enum([
+                    "aries",
+                    "taurus",
+                    "gemini",
+                    "cancer",
+                    "leo",
+                    "virgo",
+                    "libra",
+                    "scorpio",
+                    "sagittarius",
+                    "capricorn",
+                    "aquarius",
+                    "pisces",
+                    "random"
+                  ])
+                  .optional(),
+                mbti: z
+                  .enum([
+                    "INTJ",
+                    "INTP",
+                    "ENTJ",
+                    "ENTP",
+                    "INFJ",
+                    "INFP",
+                    "ENFJ",
+                    "ENFP",
+                    "ISTJ",
+                    "ISFJ",
+                    "ESTJ",
+                    "ESFJ",
+                    "ISTP",
+                    "ISFP",
+                    "ESTP",
+                    "ESFP",
+                    "random"
+                  ])
+                  .optional()
+              })
+              .optional(),
+            legal_consent: z
+              .object({
+                accepted: z.boolean(),
+                allow_ai_media: z.boolean().optional(),
+                allow_screenshot_analysis: z.boolean().optional()
+              })
+              .optional(),
+            ip_address: z.string().optional()
+          })
+          .optional(),
+        media: z
+          .object({
+            intro_text: z.string().max(220).optional(),
+            voice: z.string().optional(),
+            voice_format: z.enum(["mp3", "wav", "opus", "flac", "pcm"]).optional(),
+            include_voice_base64: z.boolean().optional(),
+            avatar_size: z.enum(["1024x1024", "1536x1024", "1024x1536", "auto"]).optional(),
+            avatar_quality: z.enum(["low", "medium", "high", "auto"]).optional(),
+            include_video: z.boolean().optional(),
+            video_prompt: z.string().max(300).optional(),
+            video_seconds: z.number().int().min(2).max(12).optional()
+          })
+          .optional()
+      }),
+      securitySchemes: publicSecuritySchemes,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+        idempotentHint: false
+      },
+      _meta: {
+        securitySchemes: publicSecuritySchemes,
+        "openai/toolInvocation/invoking": "Generating intro media bundle...",
+        "openai/toolInvocation/invoked": "Intro media ready."
+      }
+    },
+    async (input) => {
+      try {
+        const userId = normalizeUserId(input.user_id, authContextRef.current);
+        const payload = await generateIntroBundle({
+          userId,
+          preferences: input.setup?.preferences || {},
+          legalConsent: input.setup?.legal_consent,
+          ipAddress: input.setup?.ip_address,
+          introText: input.media?.intro_text,
+          voice: input.media?.voice,
+          voiceFormat: input.media?.voice_format,
+          includeVoiceBase64: input.media?.include_voice_base64,
+          avatarSize: input.media?.avatar_size,
+          avatarQuality: input.media?.avatar_quality,
+          includeVideo: input.media?.include_video,
+          videoPrompt: input.media?.video_prompt,
+          videoSeconds: input.media?.video_seconds,
+          authSubject: authContextRef.current?.subject
+        });
+        return makeIntroBundleResponse(payload);
       } catch (error) {
         return makeMcpError(error.message);
       }
@@ -379,7 +524,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Loading memory...",
         "openai/toolInvocation/invoked": "Memory loaded."
       }
@@ -430,7 +574,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Updating relationship...",
         "openai/toolInvocation/invoked": "Relationship updated."
       }
@@ -472,7 +615,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Saving memory...",
         "openai/toolInvocation/invoked": "Memory saved."
       }
@@ -515,7 +657,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Learning preferences...",
         "openai/toolInvocation/invoked": "Preferences updated."
       }
@@ -556,7 +697,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Building personalization snapshot...",
         "openai/toolInvocation/invoked": "Snapshot ready."
       }
@@ -597,7 +737,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Planning deep conversation...",
         "openai/toolInvocation/invoked": "Conversation plan ready."
       }
@@ -640,7 +779,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Recalling memory...",
         "openai/toolInvocation/invoked": "Memory recall ready."
       }
@@ -724,7 +862,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Building avatar prompt...",
         "openai/toolInvocation/invoked": "Avatar prompt ready."
       }
@@ -809,7 +946,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Generating avatar image...",
         "openai/toolInvocation/invoked": "Avatar generated."
       }
@@ -830,7 +966,7 @@ function registerCompanionTools(server, authContextRef) {
           image_url: payload.image_url,
           image_base64: payload.image_base64
         };
-        return makeMcpTextResponse("Avatar image generated.", response);
+        return makeAvatarResponse(response);
       } catch (error) {
         return makeMcpError(error.message);
       }
@@ -860,7 +996,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Generating voice...",
         "openai/toolInvocation/invoked": "Voice generated."
       }
@@ -903,7 +1038,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Transcribing voice...",
         "openai/toolInvocation/invoked": "Voice transcribed."
       }
@@ -945,7 +1079,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Analyzing screenshot...",
         "openai/toolInvocation/invoked": "Screenshot analysis ready."
       }
@@ -992,7 +1125,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Generating video...",
         "openai/toolInvocation/invoked": "Video generation requested."
       }
@@ -1036,7 +1168,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Checking video status...",
         "openai/toolInvocation/invoked": "Video status ready."
       }
@@ -1075,7 +1206,6 @@ function registerCompanionTools(server, authContextRef) {
       },
       _meta: {
         securitySchemes: publicSecuritySchemes,
-        "openai/outputTemplate": widgetUri,
         "openai/toolInvocation/invoking": "Fetching video content...",
         "openai/toolInvocation/invoked": "Video content ready."
       }
@@ -1098,7 +1228,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.7.0"
+    version: "0.8.0"
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);

@@ -108,6 +108,7 @@ BASE_URL=https://<your-domain> bash ./scripts/pre_submit_smoke.sh
 Registered MCP tools:
 
 - `companion.create_profile`
+- `companion.onboard_with_media`
 - `companion.legal_notice`
 - `companion.set_legal_consent`
 - `companion.legal_state`

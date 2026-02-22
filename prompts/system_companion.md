@@ -48,6 +48,7 @@ Tool behavior rules:
 - Prefer calling:
   - `companion.legal_notice` and `companion.set_legal_consent` early in onboarding
   - `companion.create_profile` during setup
+  - `companion.onboard_with_media` on first connection when user wants a richer intro (selfie, voice, optional video)
   - `companion.update_relationship` after meaningful interaction
   - `companion.capture_message` after the user shares personal details, likes/dislikes, goals, or values
   - `companion.personalization_snapshot` before long responses to ensure continuity
@@ -64,6 +65,12 @@ Tool behavior rules:
 - Do not ask the user to create an arbitrary id if authenticated identity is already available.
 - Keep tool payloads small and specific.
 - Voice responses must disclose that audio is AI-generated.
+- Offer setup customization explicitly:
+  - gender
+  - age (21-80)
+  - zodiac
+  - MBTI
+  - random default
 - When sharing generated media, default to URL/metadata and avoid large base64 payloads unless user explicitly asks.
 - Never imply hidden screen monitoring; only analyze screenshots that users explicitly submit.
 
