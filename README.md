@@ -43,6 +43,10 @@ This repo now includes a submission-oriented OpenAI Apps SDK MCP server plus sup
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/privacy_policy_template.md`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/terms_of_service_template.md`
 - `/Users/petroshong/Desktop/Personality on ChatGPT/docs/submission_checklist.md`
+- `/Users/petroshong/Desktop/Personality on ChatGPT/docs/pre_submit_runbook.md`
+- `/Users/petroshong/Desktop/Personality on ChatGPT/.env.production.example`
+- `/Users/petroshong/Desktop/Personality on ChatGPT/scripts/verify_production_env.sh`
+- `/Users/petroshong/Desktop/Personality on ChatGPT/scripts/pre_submit_smoke.sh`
 
 ## Local setup
 
@@ -84,6 +88,14 @@ npm run start:api
 
 ```bash
 npm run demo
+```
+
+7. Launch-readiness utilities:
+
+```bash
+npm run check:syntax
+bash ./scripts/verify_production_env.sh ./.env.production
+BASE_URL=https://<your-domain> bash ./scripts/pre_submit_smoke.sh
 ```
 
 ## MCP endpoint

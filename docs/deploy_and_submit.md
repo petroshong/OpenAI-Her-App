@@ -16,11 +16,14 @@
    - `OAUTH_ISSUER`
    - `OAUTH_AUDIENCE`
    - `OPENAI_VIDEO_MODEL`
-3. Confirm health:
+   - (recommended) start from `.env.production.example`
+3. Validate production env:
+   - `bash ./scripts/verify_production_env.sh ./.env.production`
+4. Confirm health:
    - `GET https://<your-domain>/health` returns `ok: true`
-4. Confirm MCP endpoint:
+5. Confirm MCP endpoint:
    - `POST https://<your-domain>/mcp` accepts initialize request.
-5. Confirm OAuth protected resource metadata:
+6. Confirm OAuth protected resource metadata:
    - `GET https://<your-domain>/.well-known/oauth-protected-resource`
 
 ## 2. Builder configuration
@@ -51,6 +54,9 @@
 5. Ensure CSP domains are exact and minimal.
 6. Confirm one version at a time is in review.
 7. Ensure app positioning and behavior are general-audience-safe.
+8. Run smoke checks:
+   - `BASE_URL=https://<your-domain> bash ./scripts/pre_submit_smoke.sh`
+   - `BASE_URL=https://<your-domain> AUTH_TOKEN=<bearer-token> bash ./scripts/pre_submit_smoke.sh`
 
 ## 4. Submit
 

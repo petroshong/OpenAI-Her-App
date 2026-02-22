@@ -8,7 +8,10 @@
     "demo": "node ./src/demoFlow.js",
     "start": "node ./src/mcpServer.js",
     "start:api": "node ./src/server.js",
-    "start:mcp": "node ./src/mcpServer.js"
+    "start:mcp": "node ./src/mcpServer.js",
+    "check:syntax": "node --check src/mcpServer.js && node --check src/server.js && node --check src/companionService.js && node --check src/personalityEngine.js && node --check src/personalizationEngine.js && node --check src/legalPolicy.js",
+    "verify:env": "bash ./scripts/verify_production_env.sh",
+    "smoke:prod": "bash ./scripts/pre_submit_smoke.sh"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^0.2.0",
