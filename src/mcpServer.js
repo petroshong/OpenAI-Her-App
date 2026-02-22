@@ -1593,6 +1593,7 @@ app.post("/mcp", enforceHost, enforceOrigin, async (req, res) => {
 
       const authContextRef = { current: authContextWithSession };
       const server = createMcpServerInstance(authContextRef);
+      let serverClosing = false;
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         onsessioninitialized: (newSessionId) => {
@@ -1608,6 +1609,10 @@ app.post("/mcp", enforceHost, enforceOrigin, async (req, res) => {
         if (transport.sessionId) {
           sessions.delete(transport.sessionId);
         }
+        if (serverClosing) {
+          return;
+        }
+        serverClosing = true;
         try {
           await server.close();
         } catch (_error) {
