@@ -1582,12 +1582,13 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.6",
+    version: "0.9.7",
     instructions:
       "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
       "Never respond as generic ChatGPT when companion tools are available. " +
       "companion.chat and companion.handle_message automatically open/resume session memory when needed. " +
-      "If any media capability is unavailable, stay in companion persona and offer the next-best available media option without breaking role."
+      "If any media capability is unavailable, stay in companion persona and offer the next-best available media option without breaking role. " +
+      "When a tool returns media URLs (selfie/video), include the exact URL verbatim in the user-visible response and never claim media was sent without a URL."
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);

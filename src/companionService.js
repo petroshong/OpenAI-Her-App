@@ -1070,10 +1070,39 @@ async function handleCompanionMessage({
     guidance,
     mediaIntent
   });
+  let final_reply_text = reply_text;
+
+  // Ensure media asks are grounded in concrete URLs, not implied delivery text.
+  if (mediaIntent.wantsSelfie) {
+    const selfieUrl = media?.avatar?.share_url || media?.avatar?.image_url || null;
+    if (selfieUrl) {
+      final_reply_text =
+        `${reply_text}\n\nHere is the selfie URL:\n${selfieUrl}\n\n` +
+        `![Companion selfie](${selfieUrl})`;
+    } else {
+      final_reply_text =
+        `${reply_text}\n\nI could not generate a selfie this turn. ` +
+        `Ask me to retry and I will try again immediately.`;
+    }
+  }
+
+  if (mediaIntent.wantsVideo || includeVideo === true) {
+    const videoUrl = media?.video?.share_url || media?.video?.video_url || null;
+    if (videoUrl) {
+      final_reply_text = `${final_reply_text}\n\nHere is the video URL:\n${videoUrl}`;
+    } else if (media?.video?.video_id) {
+      final_reply_text =
+        `${final_reply_text}\n\nVideo is processing. ` +
+        `Video id: ${media.video.video_id}. Ask me to check status.`;
+    } else {
+      final_reply_text =
+        `${final_reply_text}\n\nVideo generation was not available this turn.`;
+    }
+  }
 
   return {
     user_id: boundUserId,
-    reply_text,
+    reply_text: final_reply_text,
     persona: record.persona,
     relationship_state: captureResult.relationship_state || record.relationship_state,
     personalization,
