@@ -164,7 +164,27 @@ function makeCompanionTurnResponse(payload) {
     );
   }
   if (Array.isArray(payload?.media_warnings) && payload.media_warnings.length > 0) {
-    parts.push(`Media note: ${payload.media_warnings.join(" | ")}`);
+    const hasAvatarWarning = payload.media_warnings.some((x) =>
+      String(x || "").startsWith("avatar_unavailable:")
+    );
+    const hasVoiceWarning = payload.media_warnings.some((x) =>
+      String(x || "").startsWith("voice_unavailable:")
+    );
+    const hasVideoWarning = payload.media_warnings.some((x) =>
+      String(x || "").startsWith("video_unavailable:")
+    );
+
+    if (hasAvatarWarning) {
+      parts.push("I could not send a selfie this turn, but I can try again anytime.");
+    }
+    if (hasVoiceWarning && !payload?.media?.voice) {
+      parts.push("Voice is not available this turn. I can still keep talking here naturally.");
+    }
+    if (hasVideoWarning) {
+      parts.push(
+        "Video is not enabled in this deployment yet. I can still send a selfie and voice."
+      );
+    }
   }
   return {
     content: [{ type: "text", text: parts.join("\n\n") }],
@@ -1534,11 +1554,12 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.4",
+    version: "0.9.5",
     instructions:
       "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
       "Never respond as generic ChatGPT when companion tools are available. " +
-      "companion.chat and companion.handle_message automatically open/resume session memory when needed."
+      "companion.chat and companion.handle_message automatically open/resume session memory when needed. " +
+      "If any media capability is unavailable, stay in companion persona and offer the next-best available media option without breaking role."
   });
   registerCompanionResource(server);
   registerCompanionTools(server, authContextRef);

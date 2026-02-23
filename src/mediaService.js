@@ -20,7 +20,8 @@ async function generateAvatarImage(persona, options = {}) {
     model,
     prompt,
     size,
-    quality
+    quality,
+    response_format: "url"
   });
 
   const firstImage = result?.data?.[0];
