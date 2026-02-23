@@ -6,6 +6,7 @@ This repo now includes a submission-oriented OpenAI Apps SDK MCP server plus sup
 - Autonomous persona mode (no manual setup required; companion self-selects and introduces itself)
 - Zero-setup session open (`companion.open_session`) so first user message can auto-resume or auto-bootstrap
 - First-turn auto intro media (selfie + voice) with one-time delivery guard
+- Public media share URLs (`/media/...`) for generated assets so links can render in chat
 - Built-in MCP routing instructions so ChatGPT can call companion chat tools without pasted Builder templates
 - General-audience-safe consent and disclosure flow
 - Multi-factor trust progression (`acquaintance` to `lifelong_ally`)
@@ -72,6 +73,7 @@ cp "/Users/petroshong/Desktop/Personality on ChatGPT/.env.example" "/Users/petro
 - `OPENAI_API_KEY`
 - `APP_PUBLIC_BASE_URL` (public HTTPS origin of your deployed app backend)
 - `APP_WIDGET_DOMAIN` (unique dedicated domain for widget assets)
+- `MEDIA_SHARE_BASE_URL` (base URL used to emit public asset links; defaults to `APP_PUBLIC_BASE_URL`)
 - `MCP_ALLOWED_ORIGINS` and `MCP_ALLOWED_HOSTS` (restrict requests to expected origins/hosts)
 - `REQUIRE_LEGAL_CONSENT` (`true` recommended for production)
 - OAuth verification envs (`REQUIRE_OAUTH_ACCOUNT_BINDING`, `OAUTH_JWKS_URI`, `OAUTH_ISSUER`, `OAUTH_AUDIENCE`)

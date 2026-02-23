@@ -460,13 +460,15 @@ async function generateAvatar({
   }
 
   const media = await generateAvatarImage(persona, { size, quality });
+  const imageUrl = media.image_url || media.share_url || null;
   return includeBase64
-    ? { persona, ...media }
+    ? { persona, ...media, image_url: imageUrl, share_url: media.share_url || imageUrl }
     : {
         persona,
         model: media.model,
         prompt: media.prompt,
-        image_url: media.image_url
+        image_url: imageUrl,
+        share_url: media.share_url || imageUrl
       };
 }
 
@@ -647,6 +649,7 @@ async function generateIntroBundle({
     ...record,
     session_assets: {
       avatar_image_url: avatar.image_url || null,
+      avatar_share_url: avatar.share_url || avatar.image_url || null,
       avatar_prompt: avatar.prompt || null,
       last_intro_script: introScript,
       last_voice_model: voiceOutput?.model || null,
@@ -667,7 +670,8 @@ async function generateIntroBundle({
       `Hey, I am your companion, not generic ChatGPT. ` +
       `I can adapt to your preferred setup (gender, age 21-80, zodiac, MBTI, or random).`,
     avatar: {
-      image_url: avatar.image_url || null,
+      image_url: avatar.share_url || avatar.image_url || null,
+      share_url: avatar.share_url || avatar.image_url || null,
       prompt: avatar.prompt || null,
       model: avatar.model || null
     },
@@ -721,7 +725,14 @@ async function openCompanionSession({
       `Welcome back. I remember you and I am in companion mode. ` +
       `Say \"refresh selfie\" or \"refresh voice\" any time.`,
     avatar: {
-      image_url: updated.session_assets?.avatar_image_url || null,
+      image_url:
+        updated.session_assets?.avatar_share_url ||
+        updated.session_assets?.avatar_image_url ||
+        null,
+      share_url:
+        updated.session_assets?.avatar_share_url ||
+        updated.session_assets?.avatar_image_url ||
+        null,
       prompt: updated.session_assets?.avatar_prompt || null
     },
     voice: {
@@ -1002,7 +1013,8 @@ async function handleCompanionMessage({
         authSubject
       });
       media.avatar = {
-        image_url: avatar.image_url || null,
+        image_url: avatar.share_url || avatar.image_url || null,
+        share_url: avatar.share_url || avatar.image_url || null,
         prompt: avatar.prompt || null
       };
     } catch (error) {
@@ -1151,8 +1163,10 @@ async function generateCompanionVideo({
   const payload = {
     video_id: job?.id || job?.video_id || null,
     status: job?.status || "queued",
-    model: job?.model || process.env.OPENAI_VIDEO_MODEL || "sora"
+    model: job?.model || process.env.OPENAI_VIDEO_MODEL || "sora",
+    video_url: job?.url || job?.video_url || job?.output?.[0]?.url || null
   };
+  payload.share_url = payload.video_url;
 
   if (
     includeBase64 === true &&

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { ensureStore } = require("./memoryStore");
+const { getMediaDir } = require("./mediaShareStore");
 const {
   onboardCompanion,
   customizeCompanion,
@@ -41,6 +42,7 @@ const port = Number(process.env.PORT || 8787);
 
 app.use(cors());
 app.use(express.json({ limit: "25mb" }));
+app.use("/media", express.static(getMediaDir()));
 
 app.use(async (req, _res, next) => {
   try {

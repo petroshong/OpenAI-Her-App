@@ -20,6 +20,7 @@ const {
   getToolSecuritySchemes
 } = require("./authIdentity");
 const { ensureStore } = require("./memoryStore");
+const { getMediaDir } = require("./mediaShareStore");
 const {
   onboardCompanion,
   customizeCompanion,
@@ -51,6 +52,7 @@ ensureStore();
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+app.use("/media", express.static(getMediaDir()));
 
 const port = Number(process.env.PORT || 8787);
 const apiBaseUrl = process.env.APP_PUBLIC_BASE_URL || "https://your-app.example.com";
@@ -115,11 +117,15 @@ function makeMcpTextResponse(title, payload) {
 }
 
 function makeAvatarResponse(payload) {
-  const preview = payload?.image_url
-    ? `Avatar generated.\n\n![Companion selfie](${payload.image_url})`
-    : "Avatar generated.";
+  const previewParts = ["Avatar generated."];
+  if (payload?.image_url) {
+    previewParts.push(`![Companion selfie](${payload.image_url})`);
+  }
+  if (payload?.share_url) {
+    previewParts.push(`Share URL: ${payload.share_url}`);
+  }
   return {
-    content: [{ type: "text", text: preview }],
+    content: [{ type: "text", text: previewParts.join("\n\n") }],
     structuredContent: payload
   };
 }
@@ -128,6 +134,9 @@ function makeIntroBundleResponse(payload) {
   const parts = ["Intro bundle ready."];
   if (payload?.avatar?.image_url) {
     parts.push(`![Companion selfie](${payload.avatar.image_url})`);
+  }
+  if (payload?.avatar?.share_url) {
+    parts.push(`Selfie URL: ${payload.avatar.share_url}`);
   }
   if (payload?.intro_script) {
     parts.push(`Voice script:\n${payload.intro_script}`);
@@ -152,6 +161,9 @@ function makeCompanionTurnResponse(payload) {
   if (payload?.media?.avatar?.image_url) {
     parts.push(`![Companion selfie](${payload.media.avatar.image_url})`);
   }
+  if (payload?.media?.avatar?.share_url) {
+    parts.push(`Selfie URL: ${payload.media.avatar.share_url}`);
+  }
   if (payload?.media?.voice) {
     parts.push("Voice intro ready (AI-generated).");
     if (payload?.media?.voice_script) {
@@ -161,6 +173,11 @@ function makeCompanionTurnResponse(payload) {
   if (payload?.media?.video?.video_id) {
     parts.push(
       `Video job started: \`${payload.media.video.video_id}\` (status: ${payload.media.video.status || "queued"}).`
+    );
+  }
+  if (payload?.media?.video?.share_url || payload?.media?.video?.video_url) {
+    parts.push(
+      `Video URL: ${payload.media.video.share_url || payload.media.video.video_url}`
     );
   }
   if (Array.isArray(payload?.media_warnings) && payload.media_warnings.length > 0) {
@@ -1290,11 +1307,22 @@ function registerCompanionTools(server, authContextRef) {
           persona: payload.persona,
           prompt: payload.prompt,
           image_url: payload.image_url,
+          share_url: payload.share_url,
           image_base64: payload.image_base64
         };
         return makeAvatarResponse(response);
       } catch (error) {
-        return makeMcpError(error.message);
+        const fallback = getAvatarPrompt({
+          userId: normalizeUserId(input.user_id, authContextRef.current),
+          preferences: input.preferences || {},
+          authSubject: authContextRef.current?.subject
+        });
+        return makeMcpTextResponse("Avatar unavailable right now. Retry in a moment.", {
+          status: "avatar_unavailable",
+          retryable: true,
+          reason: error.message,
+          ...fallback
+        });
       }
     }
   );
@@ -1554,7 +1582,7 @@ function registerCompanionTools(server, authContextRef) {
 function createMcpServerInstance(authContextRef) {
   const server = new McpServer({
     name: "relationship-companion",
-    version: "0.9.5",
+    version: "0.9.6",
     instructions:
       "Companion mode server. For every user turn, call companion.chat (or companion.handle_message) with the raw user message before answering. " +
       "Never respond as generic ChatGPT when companion tools are available. " +

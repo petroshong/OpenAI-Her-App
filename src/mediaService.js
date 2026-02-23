@@ -1,6 +1,7 @@
 const OpenAI = require("openai");
 const { toFile } = require("openai/uploads");
 const { buildAvatarPrompt } = require("./avatarPromptBuilder");
+const { saveBase64Media } = require("./mediaShareStore");
 
 function getClient() {
   if (!process.env.OPENAI_API_KEY) {
@@ -20,8 +21,7 @@ async function generateAvatarImage(persona, options = {}) {
     model,
     prompt,
     size,
-    quality,
-    response_format: "url"
+    quality
   });
 
   const firstImage = result?.data?.[0];
@@ -29,11 +29,21 @@ async function generateAvatarImage(persona, options = {}) {
     throw new Error("Image generation returned no image payload");
   }
 
+  let share = null;
+  if (!firstImage.url && firstImage.b64_json) {
+    share = saveBase64Media({
+      base64: firstImage.b64_json,
+      mimeType: "image/png",
+      prefix: "avatar"
+    });
+  }
+
   return {
     model,
     prompt,
     image_base64: firstImage.b64_json || null,
-    image_url: firstImage.url || null
+    image_url: firstImage.url || share?.public_url || null,
+    share_url: firstImage.url || share?.public_url || null
   };
 }
 
