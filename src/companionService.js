@@ -759,12 +759,43 @@ function personaIdentityLine(persona) {
   return bits.length > 0 ? bits.join(" / ") : "companion persona";
 }
 
-function inferMediaIntent(message) {
+function inferMediaIntent(message, record) {
   const text = String(message || "").toLowerCase();
+  const requestCue =
+    /\b(send|show|share|drop|post|give|make|generate|create|record|can|could|want|need|please)\b/.test(
+      text
+    );
+  const referentialCue =
+    /\b(one|another|again|same|that one|one more)\b/.test(text) && requestCue;
+
+  const explicitSelfie =
+    /\b(selfie|photo|picture|pic|portrait|headshot|snap|image)\b/.test(text) &&
+    requestCue;
+  const appearanceAsk =
+    /\b(what do you look like|how do you look|can i see you|let me see you|show me your face|face reveal|show yourself)\b/.test(
+      text
+    );
+
+  const explicitVoice =
+    /\b(voice note|voice message|audio message|send audio|send voice|read this out loud|say this out loud|speak to me)\b/.test(
+      text
+    ) ||
+    (/\b(voice|audio)\b/.test(text) && requestCue);
+  const explicitVideo =
+    /\b(video|clip|reel|short|movie|sora)\b/.test(text) && requestCue;
+
+  const lastMediaKind = record?.session_assets?.last_media_kind || null;
+  const carryoverKind = referentialCue ? lastMediaKind : null;
+
+  const wantsSelfie =
+    explicitSelfie || appearanceAsk || carryoverKind === "selfie";
+  const wantsVoice = explicitVoice || carryoverKind === "voice";
+  const wantsVideo = explicitVideo || carryoverKind === "video";
+
   return {
-    wantsSelfie: /\b(selfie|photo|picture|pic|show me you|see you)\b/.test(text),
-    wantsVoice: /\b(voice|audio|speak|say this|read this)\b/.test(text),
-    wantsVideo: /\b(video|clip|movie|sora)\b/.test(text),
+    wantsSelfie,
+    wantsVoice,
+    wantsVideo,
     asksIdentity: /\b(who are you|what are you)\b/.test(text)
   };
 }
@@ -960,7 +991,7 @@ async function handleCompanionMessage({
     record.relationship_state,
     personalization
   );
-  const mediaIntent = inferMediaIntent(safeMessage);
+  const mediaIntent = inferMediaIntent(safeMessage, record);
   const media = {};
   const fallback = {};
   const media_warnings = [];
@@ -976,7 +1007,12 @@ async function handleCompanionMessage({
     );
     if (openSessionPayload?.avatar?.image_url) {
       media.avatar = {
-        image_url: openSessionPayload.avatar.image_url,
+        image_url:
+          openSessionPayload.avatar.share_url ||
+          openSessionPayload.avatar.image_url,
+        share_url:
+          openSessionPayload.avatar.share_url ||
+          openSessionPayload.avatar.image_url,
         prompt: openSessionPayload?.avatar?.prompt || null
       };
     } else if (openSessionPayload?.avatar?.prompt) {
@@ -996,10 +1032,19 @@ async function handleCompanionMessage({
       media_warnings.push(...openWarnings);
     }
 
+    const currentRecord = getUserRecord(boundUserId) || record;
     upsertUserRecord(boundUserId, {
-      ...record,
+      ...currentRecord,
       session_assets: {
-        ...(record.session_assets || {}),
+        ...(currentRecord.session_assets || {}),
+        last_media_kind:
+          media?.avatar?.image_url || media?.avatar?.share_url
+            ? "selfie"
+            : media?.voice
+            ? "voice"
+            : null,
+        last_media_request_text: safeMessage.slice(0, 180),
+        last_media_request_iso: new Date().toISOString(),
         auto_intro_sent_iso: new Date().toISOString()
       }
     });
@@ -1061,6 +1106,37 @@ async function handleCompanionMessage({
       media_warnings.push(`video_unavailable: ${error.message}`);
       fallback.video_prompt = prompt;
     }
+  }
+
+  // Persist last media context so follow-up requests like "send another one"
+  // can resolve intent without exact keywords.
+  const latestRecord = getUserRecord(boundUserId) || record;
+  const mediaKind =
+    media?.video?.video_id || media?.video?.share_url || media?.video?.video_url
+      ? "video"
+      : media?.avatar?.share_url || media?.avatar?.image_url
+      ? "selfie"
+      : media?.voice
+      ? "voice"
+      : null;
+  if (mediaKind || mediaIntent.wantsSelfie || mediaIntent.wantsVoice || mediaIntent.wantsVideo) {
+    upsertUserRecord(boundUserId, {
+      ...latestRecord,
+      session_assets: {
+        ...(latestRecord.session_assets || {}),
+        last_media_kind:
+          mediaKind ||
+          (mediaIntent.wantsVideo
+            ? "video"
+            : mediaIntent.wantsSelfie
+            ? "selfie"
+            : mediaIntent.wantsVoice
+            ? "voice"
+            : latestRecord?.session_assets?.last_media_kind || null),
+        last_media_request_text: safeMessage.slice(0, 180),
+        last_media_request_iso: new Date().toISOString()
+      }
+    });
   }
 
   const reply_text = buildTurnReply({
